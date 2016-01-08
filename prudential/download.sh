@@ -1,0 +1,10 @@
+curl 'https://kaggle2.blob.core.windows.net/competitions-data/kaggle/4699/train.csv.zip?sv=2012-02-12&se=2016-01-11T21%3A39%3A51Z&sr=b&sp=r&sig=eOIKhaX4Czbk9lfTT%2BNE560w4oUBPqMFOeXqZw%2FZfuA%3D' -H 'Accept-Encoding: gzip, deflate, sdch' -H 'Accept-Language: en-US,en;q=0.8' -H 'Upgrade-Insecure-Requests: 1' -H 'User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.106 Safari/537.36' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8' -H 'Referer: https://www.kaggle.com/c/prudential-life-insurance-assessment/data' -H 'Connection: keep-alive' --compressed > train.csv.zip
+curl 'https://kaggle2.blob.core.windows.net/competitions-data/kaggle/4699/test.csv.zip?sv=2012-02-12&se=2016-01-11T21%3A47%3A10Z&sr=b&sp=r&sig=F7mtx%2FFbHIMEGn2yTovgRpUhD0CRUTrjm9zUkIcIzx8%3D' -H 'Accept-Encoding: gzip, deflate, sdch' -H 'Accept-Language: en-US,en;q=0.8' -H 'Upgrade-Insecure-Requests: 1' -H 'User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.106 Safari/537.36' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8' -H 'Referer: https://www.kaggle.com/c/prudential-life-insurance-assessment/data' -H 'Connection: keep-alive' --compressed > test.csv.zip
+curl 'https://kaggle2.blob.core.windows.net/competitions-data/kaggle/4699/sample_submission.csv.zip?sv=2012-02-12&se=2016-01-11T21%3A48%3A13Z&sr=b&sp=r&sig=8EbZpuObHcwmR6KzZZWE90%2BzGeCl5sWEbE5%2BRnv8NnI%3D' -H 'Accept-Encoding: gzip, deflate, sdch' -H 'Accept-Language: en-US,en;q=0.8' -H 'Upgrade-Insecure-Requests: 1' -H 'User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.106 Safari/537.36' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8' -H 'Referer: https://www.kaggle.com/c/prudential-life-insurance-assessment/data' -H 'Connection: keep-alive' --compressed > sample_submission.csv.zip
+unzip train.csv.zip
+unzip test.csv.zip
+unzip sample_submission.csv.zip
+
+rm train.csv.zip
+rm test.csv.zip
+rm sample_submission.csv.zip
