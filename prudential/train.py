@@ -8,7 +8,7 @@ logger = logging.getLogger("trainlo")
 logger.setLevel(logging.DEBUG)
 
 def info(msg):
-    logger.info(msg)
+    logger.info(msg.replace("\n", "  "))
 #=========================================LOGGING
 
 import sys
@@ -79,6 +79,13 @@ oh_encoder.fit(X)
 X = oh_encoder.transform(X).todense()
 X_actual_test = oh_encoder.transform(X_actual_test).todense()
 
+#debug on
+n = 100
+X = X[:n, :]
+y = y[:n]
+#debug off
+info("train shape = %s     test shape = %s " % (X.shape, X_actual_test.shape))
+
 train_test_folds = list(StratifiedKFold(y, n_folds=6, random_state=0))
 #================================================================================================
 train_cache = Memory(cachedir="cache/train", verbose=0)
@@ -129,7 +136,9 @@ def stacker_test_predictions(stacker, base_clfs):
     n = len(y)
     stacked_X = np.hstack([X] + [train_predictions(clf).reshape(n, 1) for clf in base_clfs])
     stacker.fit(stacked_X, y)
-    return stacker.predict(X_actual_test)
+    n = X_actual_test.shape[0]
+    stacked_test_X = np.hstack([X_actual_test] + [test_predictions(clf).reshape(n, 1) for clf in base_clfs])
+    return stacker.predict(stacked_test_X)
 #============================================================================
 def benchmark(model):
     pred = train_predictions(model)
@@ -145,17 +154,18 @@ def benchmark_stacker(model, base_clfs):
     info("%s   %s, %s" % (result, model, base_clfs))
     return result
 #==============================================================================
-xgbr = XGBRegressor(objective="reg:linear", min_child_weight=80, subsample=0.85, colsample_bytree=0.30, silent=1, max_depth=9)
-xgbc = XGBClassifier(objective="reg:linear", min_child_weight=80, subsample=0.85, colsample_bytree=0.30, silent=1, max_depth=9)
-rfr = RandomForestRegressor(n_estimators=400)
-etr = ExtraTreesRegressor(n_estimators=400)
-etc = ExtraTreesClassifier(n_estimators=400)
-sgdr = SGDRegressor()
-perceptron = Perceptron()
+xgbr = lambda: XGBRegressor(objective="reg:linear", min_child_weight=80, subsample=0.85, colsample_bytree=0.30, silent=1, max_depth=9)
+xgbc = lambda: XGBClassifier(objective="reg:linear", min_child_weight=80, subsample=0.85, colsample_bytree=0.30, silent=1, max_depth=9)
+rfr = lambda: RandomForestRegressor(n_estimators=400)
+etr = lambda: ExtraTreesRegressor(n_estimators=400)
+etc = lambda: ExtraTreesClassifier(n_estimators=400)
+sgdr = lambda: SGDRegressor()
+perceptron = lambda: Perceptron()
 
-dream_team = sorted([xgbr, rfr,  etr, sgdr, LinearRegression(), Perceptron(),
+dream_team = lambda: sorted([xgbr(), rfr(),  etr(), sgdr(), LinearRegression(), Perceptron(),
               SVR(kernel="linear"), SVR(kernel="poly"), SVR(kernel="sigmoid"),
               SVR(kernel="rbf"), LogisticRegression()])
+
 def make_sub(stacker, base_clfs, filename):
     preds = stacker_test_predictions(stacker, base_clfs)
     
@@ -166,16 +176,22 @@ def make_sub(stacker, base_clfs, filename):
     df.to_csv(filename, index=False)
 info("========================START========================")
 info("shape = " + str(X.shape))
-train_predictions(etr)
+train_predictions(etr())
 
 info("extra trees done woohooo")
 
 benchmark_stacker(DummyClassifier(), [DummyRegressor()])
-benchmark_stacker(etc, dream_team)
-make_sub(etc, dream_team, "extra_trees.csv")
-benchmark_stacker(xgbc, dream_team)
-make_sub(xgbc, dream_team, "xgbc.csv")
-benchmark_stacker(LogisticRegression, dream_team)
-make_sub(xgbc, dream_team, "logisticreg.csv")
+benchmark_stacker(etc(), dream_team())
+info("makink submission for extra trees")
+make_sub(etc(), dream_team(), "extra_trees.csv")
+info("done makink submission for extra trees")
+benchmark_stacker(xgbc(), dream_team())
+info("makink submission for xgbc")
+make_sub(xgbc(), dream_team(), "xgbc.csv")
+info("done makink submission for xgbc")
+benchmark_stacker(LogisticRegression(), dream_team())
+info("makink submission for logistic")
+make_sub(xgbc(), dream_team(), "logisticreg.csv")
+info("done making submission for logistic")
 
 info("::::::::::::::::::::::::::::::: I'M DONE ::::::::::::::::::::::::::::::::::")
