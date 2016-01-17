@@ -4,7 +4,7 @@
 import logging
 # create logger
 logging.basicConfig(filename='log_train.log',level=logging.DEBUG, format="%(asctime)s; %(levelname)s;  %(message)s")
-logger = logging.getLogger("logging_tryout2")
+logger = logging.getLogger("trainlo")
 logger.setLevel(logging.DEBUG)
 
 def info(msg):
@@ -81,16 +81,16 @@ X_actual_test = oh_encoder.transform(X_actual_test).todense()
 
 train_test_folds = list(StratifiedKFold(y, n_folds=6, random_state=0))
 #================================================================================================
-train_cache = Memory(cachedir="cache/_train", verbose=0)
+train_cache = Memory(cachedir="cache/train", verbose=0)
 test_cache = Memory(cachedir="cache/test", verbose=0)
 
 @train_cache.cache
 def train_predictions(model):
     ind2pred = {}
-    for train, test in train_test_folds:
-        info(("fitting fold   "+  str(model)[:100]))
+    for i, (train, test) in enumerate(train_test_folds):
+        info(("fitting fold   "+str(i+1)+" " +  str(model)))
         model.fit(X[train], y[train])
-        info(("fold fitted    "+  str(model)[:100]))
+        info(("fold fitted    "+str(i+1)+" " +  str(model)))
         preds = model.predict(X[test])
         for i, p in zip(test, preds):
             ind2pred[i] = p
@@ -108,20 +108,20 @@ stacker_test_cache = Memory(cachedir="cache/stacker_test", verbose=0)
 
 @stacker_train_cache.cache
 def stacker_train_predictions(stacker, base_clfs):
-    info("start stacker")
+    info("start stacker --------------------------")
     n = len(y)
     stacked_X = np.hstack([X] + [train_predictions(clf).reshape(n, 1) for clf in base_clfs])
     info("base regressors done")
     ind2pred = {}
-    for train, test in train_test_folds:
-        info("fitting stacker fold  " + str(stacker))
+    for i, (train, test) in enumerate(train_test_folds):
+        info("fitting stacker fold %s   %s" % (i, str(stacker)))
 
         stacker.fit(stacked_X[train], y[train])
-        info("stacker fitted fold   "+ str(stacker))
+        info("stacker fitted fold %s    %s " % (i, str(stacker)))
         preds = stacker.predict(stacked_X[test])
         for i, p in zip(test, preds):
             ind2pred[i] = p
-    info("stacker done")
+    info("stacker done =========================")
     return np.array([ind2pred[i] for i in range(len(y))])
 
 @stacker_test_cache.cache
@@ -165,6 +165,10 @@ def make_sub(stacker, base_clfs, filename):
 
     df.to_csv(filename, index=False)
 info("========================START========================")
+info("shape = " + str(X.shape))
+train_predictions(etr)
+
+info("extra trees done woohooo")
 
 benchmark_stacker(DummyClassifier(), [DummyRegressor()])
 benchmark_stacker(etc, dream_team)
