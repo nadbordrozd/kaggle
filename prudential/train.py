@@ -23,7 +23,7 @@ from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, Rando
 from sklearn.svm import SVC, SVR
 from xgboost.sklearn import XGBClassifier, XGBRegressor
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-from joblib import Memory
+from persistent_cache import memo, PersistentDict as Perd
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.preprocessing import LabelBinarizer, LabelEncoder
 from ml_metrics import quadratic_weighted_kappa
@@ -79,41 +79,51 @@ oh_encoder.fit(X)
 X = oh_encoder.transform(X).todense()
 X_actual_test = oh_encoder.transform(X_actual_test).todense()
 
-#debug on
-n = 100
-X = X[:n, :]
-y = y[:n]
-#debug off
+# FEATURE SELECTION ..........................................
+def is_bad(nums):
+    suma = 0
+    for i in nums:
+        if i not in [0, 1]:
+            return False
+        suma += i
+    return suma < 30
+
+good_inds = []
+for i in range(X.shape[1]):
+    nums = np.array(X[:, i]).flatten()
+    
+    if not is_bad(nums):
+        good_inds.append(i)
+        
+X = X[:, good_inds]
+X_actual_test = X_actual_test[:, good_inds]
+
+# .....................................................
+
 info("train shape = %s     test shape = %s " % (X.shape, X_actual_test.shape))
 
-train_test_folds = list(StratifiedKFold(y, n_folds=6, random_state=0))
+train_test_folds = list(StratifiedKFold(y, n_folds=4, random_state=0))
 #================================================================================================
-train_cache = Memory(cachedir="cache/train", verbose=0)
-test_cache = Memory(cachedir="cache/test", verbose=0)
-
-@train_cache.cache
+@memo(Perd("memo/train_predictions"))
 def train_predictions(model):
     ind2pred = {}
     for i, (train, test) in enumerate(train_test_folds):
-        info(("fitting fold   "+str(i+1)+" " +  str(model)))
+        info(("fitting fold   "+str(i+1)+ str(model)[:100]))
         model.fit(X[train], y[train])
-        info(("fold fitted    "+str(i+1)+" " +  str(model)))
+        info(("fold fitted    "+str(i+1)+  str(model)[:100]))
         preds = model.predict(X[test])
         for i, p in zip(test, preds):
             ind2pred[i] = p
     
     return np.array([ind2pred[i] for i in range(len(y))])
 
-@test_cache.cache
+@memo(Perd("memo/test_predictions"))
 def test_predictions(model):
     model.fit(X, y)
     return model.predict(X_actual_test)
 
 
-stacker_train_cache = Memory(cachedir="cache/stacker_train", verbose=0)
-stacker_test_cache = Memory(cachedir="cache/stacker_test", verbose=0)
-
-@stacker_train_cache.cache
+@memo(Perd("memo/stacker_train_predictions"))
 def stacker_train_predictions(stacker, base_clfs):
     info("start stacker --------------------------")
     n = len(y)
@@ -131,7 +141,26 @@ def stacker_train_predictions(stacker, base_clfs):
     info("stacker done =========================")
     return np.array([ind2pred[i] for i in range(len(y))])
 
-@stacker_test_cache.cache
+@memo(Perd("memo/lazy_stacker_train_predictions"))
+def lazy_stacker_train_predictions(stacker, base_clfs):
+    info("start stacker --------------------------")
+    n = len(y)
+    stacked_X = np.hstack([train_predictions(clf).reshape(n, 1) for clf in base_clfs])
+    info("base regressors done")
+    ind2pred = {}
+    for i, (train, test) in enumerate(train_test_folds):
+        info("fitting stacker fold %s   %s" % (i, str(stacker)))
+
+        stacker.fit(stacked_X[train], y[train])
+        info("stacker fitted fold %s    %s " % (i, str(stacker)))
+        preds = stacker.predict(stacked_X[test])
+        for i, p in zip(test, preds):
+            ind2pred[i] = p
+    info("stacker done =========================")
+    return np.array([ind2pred[i] for i in range(len(y))])
+
+
+@memo(Perd("memo/stacker_test_predictions"))
 def stacker_test_predictions(stacker, base_clfs):
     n = len(y)
     stacked_X = np.hstack([X] + [train_predictions(clf).reshape(n, 1) for clf in base_clfs])
@@ -151,7 +180,14 @@ def make_predictions(model):
 def benchmark_stacker(model, base_clfs):
     pred = stacker_train_predictions(model, base_clfs)
     result = eval_wrapper(pred, y)
-    info("%s   %s, %s" % (result, model, base_clfs))
+    info("stacker %s   %s, %s" % (result, model, base_clfs))
+    return result
+
+def benchmark_lazy_stacker(model, base_clfs):
+    pred = lazy_stacker_train_predictions(model, base_clfs)
+    result = eval_wrapper(pred, y)
+    info("lazy stacker %s   %s, %s" % (result, model, base_clfs))
+    
     return result
 #==============================================================================
 xgbr = lambda: XGBRegressor(objective="reg:linear", min_child_weight=80, subsample=0.85, colsample_bytree=0.30, silent=1, max_depth=9)
@@ -181,17 +217,19 @@ train_predictions(etr())
 info("extra trees done woohooo")
 
 benchmark_stacker(DummyClassifier(), [DummyRegressor()])
+benchmark_lazy_stacker(xgbc(), dream_team())
+benchmark_lazy_stacker(etc(), dream_team())
 benchmark_stacker(etc(), dream_team())
-info("makink submission for extra trees")
-make_sub(etc(), dream_team(), "extra_trees.csv")
-info("done makink submission for extra trees")
+#info("makink submission for extra trees")
+#make_sub(etc(), dream_team(), "extra_trees.csv")
+#info("done makink submission for extra trees")
 benchmark_stacker(xgbc(), dream_team())
-info("makink submission for xgbc")
-make_sub(xgbc(), dream_team(), "xgbc.csv")
-info("done makink submission for xgbc")
+#info("makink submission for xgbc")
+#make_sub(xgbc(), dream_team(), "xgbc.csv")
+#info("done makink submission for xgbc")
 benchmark_stacker(LogisticRegression(), dream_team())
-info("makink submission for logistic")
-make_sub(xgbc(), dream_team(), "logisticreg.csv")
-info("done making submission for logistic")
+#info("makink submission for logistic")
+#make_sub(xgbc(), dream_team(), "logisticreg.csv")
+#info("done making submission for logistic")
 
 info("::::::::::::::::::::::::::::::: I'M DONE ::::::::::::::::::::::::::::::::::")
