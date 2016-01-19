@@ -94,6 +94,9 @@ def memo(cache, key_fun=None):
                 key = args, frozenset(kwargs.iteritems())
             else:
                 key = args
+            #temporary fix - need to evaluate key upfront otherwise it may
+            #change while evaluating the function
+            key = pickle.dumps(key)
             if key in cache:
                 return cache[key]
             else:
