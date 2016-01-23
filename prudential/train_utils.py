@@ -1,7 +1,9 @@
+MEMO_PATH = "memo_fe"
+
 #=========================================LOGGING
 import logging
 # create logger
-logging.basicConfig(filename='loglog.log',level=logging.DEBUG, format="%(asctime)s; %(levelname)s;  %(message)s")
+logging.basicConfig(filename='feat_engineered.log',level=logging.DEBUG, format="%(asctime)s; %(levelname)s;  %(message)s")
 logger = logging.getLogger("trainlo")
 logger.setLevel(logging.DEBUG)
 
@@ -36,75 +38,6 @@ def eval_wrapper(yhat, y):
 
 
 num_classes = 8
-#TODO: check which ones are really worth encoding and which can be even dropped (some may contain nonoverlapping values between
-#test and training sest)
-categorical = {'Product_Info_1', 'Product_Info_2', 'Product_Info_3', 'Product_Info_5', 'Product_Info_6', 
-               'Product_Info_7', 'Employment_Info_2', 'Employment_Info_3', 'Employment_Info_5', 
-               'InsuredInfo_1', 'InsuredInfo_2', 'InsuredInfo_3', 'InsuredInfo_4', 'InsuredInfo_5', 
-               'InsuredInfo_6', 'InsuredInfo_7', 'Insurance_History_1', 'Insurance_History_2', 
-               'Insurance_History_3', 'Insurance_History_4', 'Insurance_History_7', 'Insurance_History_8', 
-               'Insurance_History_9', 'Family_Hist_1', 'Medical_History_2', 'Medical_History_3', 
-               'Medical_History_4', 'Medical_History_5', 'Medical_History_6', 'Medical_History_7', 
-               'Medical_History_8', 'Medical_History_9', 'Medical_History_10', 'Medical_History_11', 
-               'Medical_History_12', 'Medical_History_13', 'Medical_History_14', 'Medical_History_16', 
-               'Medical_History_17', 'Medical_History_18', 'Medical_History_19', 'Medical_History_20', 
-               'Medical_History_21', 'Medical_History_22', 'Medical_History_23', 'Medical_History_25', 
-               'Medical_History_26', 'Medical_History_27', 'Medical_History_28', 'Medical_History_29', 
-               'Medical_History_30', 'Medical_History_31', 'Medical_History_33', 'Medical_History_34', 
-               'Medical_History_35', 'Medical_History_36', 'Medical_History_37', 
-#                'Medical_History_38', 
-               'Medical_History_39', 'Medical_History_40', 'Medical_History_41','Medical_History_1', 
-               'Medical_History_15', 'Medical_History_24', 'Medical_History_32'}
-
-train = pd.read_csv("train.csv")
-test = pd.read_csv("test.csv")
-total = pd.concat([train, test])
-median = total.median()
-train.fillna(median, inplace=True)
-test = test.fillna(median, inplace=True)
-encoder = LabelEncoder()
-for f in categorical:
-    encoder.fit(total[f])
-    train[f] = encoder.transform(train[f])
-    test[f] = encoder.transform(test[f])
-
-feature_cols = test.columns[1:]
-categorical_inds = [i for i, col in enumerate(feature_cols) if col in categorical]
-oh_encoder = OneHotEncoder(categorical_features=categorical_inds)
-
-X = np.array(train[test.columns[1:]])
-y = np.array(train.Response)
-X_actual_test = np.array(test[feature_cols])
-
-oh_encoder.fit(X)
-X = oh_encoder.transform(X).todense()
-X_actual_test = oh_encoder.transform(X_actual_test).todense()
-
-# FEATURE SELECTION ..........................................
-def is_bad(nums):
-    suma = 0
-    for i in nums:
-        if i not in [0, 1]:
-            return False
-        suma += i
-    return suma < 30
-
-good_inds = []
-for i in range(X.shape[1]):
-    nums = np.array(X[:, i]).flatten()
-    
-    if not is_bad(nums):
-        good_inds.append(i)
-        
-X = X[:, good_inds]
-X_actual_test = X_actual_test[:, good_inds]
-
-# .....................................................
-
-info("train shape = %s     test shape = %s " % (X.shape, X_actual_test.shape))
-
-
-
 
 
 print("Load the data using pandas")
@@ -116,6 +49,21 @@ all_data = train.append(test)
 
 # factorize categorical variables    
 all_data['Product_Info_2'] = pd.factorize(all_data['Product_Info_2'])[0]
+
+# FEATURE ENGINEERING
+all_data['bmi_ins_age'] = all_data.BMI * all_data.Ins_Age
+all_data['nan_count'] = all_data.isnull().sum(axis=1)
+all_data['emp_inf_4_sq'] = all_data.Employment_Info_4 ** 2
+all_data['fam_hist_4_sq'] = all_data.Family_Hist_4 ** 2
+all_data['fam_hist_2_sq'] = all_data.Family_Hist_2 ** 2
+
+mk = [col for col in train.columns if col.startswith("Medical_K")]
+all_data['sum_keywords'] = sum(train[col] for col in mk)
+
+all_data.drop('Medical_History_24')
+all_data.drop('Medical_History_10')
+
+
 
 print('Eliminate missing values')    
 # Use -1 for any others
@@ -141,7 +89,7 @@ y = np.array(train.Response)
 
 train_test_folds = list(StratifiedKFold(y, n_folds=4, random_state=0))
 #================================================================================================
-@memo(Perd("memo/train_predictions"))
+@memo(Perd(MEMO_PATH + "_train_predictions"))
 def train_predictions(model):
     ind2pred = {}
     for i, (train, test) in enumerate(train_test_folds):
@@ -154,7 +102,7 @@ def train_predictions(model):
     
     return np.array([ind2pred[i] for i in range(len(y))])
 
-@memo(Perd("memo/test_predictions"))
+@memo(Perd(MEMO_PATH + "_test_predictions"))
 def test_predictions(model):
     info("fitting (on full train set) %s" % model)
     model.fit(X, y)
@@ -162,7 +110,7 @@ def test_predictions(model):
     return model.predict(X_actual_test)
 
 
-@memo(Perd("memo/stacker_train_predictions"))
+@memo(Perd(MEMO_PATH + "_stacker_train_predictions"))
 def stacker_train_predictions(stacker, base_clfs):
     info("start stacker --------------------------")
     n = len(y)
@@ -180,7 +128,7 @@ def stacker_train_predictions(stacker, base_clfs):
     info("stacker done =========================")
     return np.array([ind2pred[i] for i in range(len(y))])
 
-@memo(Perd("memo/lazy_stacker_train_predictions"))
+@memo(Perd(MEMO_PATH + "_lazy_stacker_train_predictions"))
 def lazy_stacker_train_predictions(stacker, base_clfs):
     info("start stacker --------------------------")
     n = len(y)
@@ -199,7 +147,7 @@ def lazy_stacker_train_predictions(stacker, base_clfs):
     return np.array([ind2pred[i] for i in range(len(y))])
 
 
-@memo(Perd("memo/stacker_test_predictions"))
+@memo(Perd(MEMO_PATH + "_stacker_test_predictions"))
 def stacker_test_predictions(stacker, base_clfs):
     n = len(y)
     print "train length = %s" % n
