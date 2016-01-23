@@ -1,9 +1,7 @@
-
-
 #=========================================LOGGING
 import logging
 # create logger
-logging.basicConfig(filename='log_train_op.log',level=logging.DEBUG, format="%(asctime)s; %(levelname)s;  %(message)s")
+logging.basicConfig(filename='loglog.log',level=logging.DEBUG, format="%(asctime)s; %(levelname)s;  %(message)s")
 logger = logging.getLogger("trainlo")
 logger.setLevel(logging.DEBUG)
 
@@ -135,7 +133,7 @@ test = all_data[all_data['Response']<1].copy()
 
 
 X = np.array(train.drop(["Id", "Response"], axis=1))
-X_actual_test = np.array(train.drop(["Id", "Response"], axis=1))
+X_actual_test = np.array(test.drop(["Id", "Response"], axis=1))
 y = np.array(train.Response)
 
 
@@ -158,7 +156,9 @@ def train_predictions(model):
 
 @memo(Perd("memo/test_predictions"))
 def test_predictions(model):
+    info("fitting (on full train set) %s" % model)
     model.fit(X, y)
+    info("done fitting for %s" % model)
     return model.predict(X_actual_test)
 
 
@@ -202,10 +202,12 @@ def lazy_stacker_train_predictions(stacker, base_clfs):
 @memo(Perd("memo/stacker_test_predictions"))
 def stacker_test_predictions(stacker, base_clfs):
     n = len(y)
+    print "train length = %s" % n
     stacked_X = np.hstack([X] + [train_predictions(clf).reshape(n, 1) for clf in base_clfs])
     stacker.fit(stacked_X, y)
-    n = X_actual_test.shape[0]
-    stacked_test_X = np.hstack([X_actual_test] + [test_predictions(clf).reshape(n, 1) for clf in base_clfs])
+    nn = X_actual_test.shape[0]
+    print "test length = %s" % nn
+    stacked_test_X = np.hstack([X_actual_test] + [test_predictions(clf).reshape(nn, 1) for clf in base_clfs])
     return stacker.predict(stacked_test_X)
 #============================================================================
 def benchmark(model):
@@ -240,12 +242,14 @@ def apply_offset(data, bin_offset, sv, scorer=eval_wrapper):
 
 def optimize_offsets(predictions, y):
     # train offsets
+    info("optimising offsets %s" % len(y))
     offsets = np.ones(num_classes) * -0.5
     offset_train_preds = np.vstack((predictions, predictions, y))
     
     for j in range(num_classes):
         train_offset = lambda x: -apply_offset(offset_train_preds, x, j)
-        offsets[j] = fmin_powell(train_offset, offsets[j], disp=False)  
+        offsets[j] = fmin_powell(train_offset, offsets[j], disp=False) 
+    info("done optimising offsets %s" % len(y))
     return offsets
 
 def actually_apply_offsets(predictions, offsets):
@@ -285,11 +289,14 @@ def optimized_test_predictions(stacker, base_clfs):
     offsets = optimize_offsets(train_preds, y)
     test_preds = stacker_test_predictions(stacker, base_clfs)
     final_test_preds = actually_apply_offsets(test_preds, offsets)
+    #print "print len(train_preds), len(test_preds), len(final_test_preds)"
+    #print len(train_preds), len(test_preds), len(final_test_preds)
     return final_test_preds
 
 def make_sub_optimized(stacker, base_clfs, filename):
     preds = optimized_test_predictions(stacker, base_clfs)
-    
+    #print "len(preds)"
+    #print len(preds)
     df = pd.DataFrame()
     df['Id'] = test.Id
     df['Response'] = preds
@@ -319,43 +326,3 @@ def make_sub(stacker, base_clfs, filename):
     df['Response'] = preds
 
     df.to_csv(filename, index=False)
-info("========================START========================")
-info("shape = " + str(X.shape))
-train_predictions(etr())
-
-info("extra trees done woohooo")
-
-benchmark_model_optimized(xgbr())
-
-benchmark_stacker(DummyClassifier(), [DummyRegressor()])
-benchmark_lazy_stacker(xgbc(), dream_team())
-benchmark_lazy_stacker(etc(), dream_team())
-benchmark_stacker(etc(), dream_team())
-benchmark_stacker(xgbc(), dream_team())
-benchmark_stacker(LogisticRegression(), dream_team())
-benchmark_optimized_stacker(xgbr(), dream_team())
-benchmark_optimized_stacker(etr(), dream_team())
-benchmark_optimized_stacker(rfr(), dream_team())
-benchmark_optimized_stacker(LinearRegression(), dream_team())
-
-
-info("making submission for xgbr optimized")
-make_sub_optimized(xgbr(), dream_team(), "xgbr_opt.csv")
-
-info("making submission for etr optimized")
-make_sub_optimized(etr(), dream_team(), "etr_opt.csv")
-
-
-
-info("makink submission for extra trees")
-make_sub(etc(), dream_team(), "extra_trees.csv")
-info("done makink submission for extra trees")
-
-info("makink submission for logistic")
-make_sub(xgbc(), dream_team(), "logisticreg.csv")
-info("done making submission for logistic")
-
-info("makink submission for xgbc")
-make_sub(xgbc(), dream_team(), "xgbc.csv")
-info("done makink submission for xgbc")
-info("::::::::::::::::::::::::::::::: I'M DONE ::::::::::::::::::::::::::::::::::")
