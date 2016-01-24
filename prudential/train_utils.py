@@ -1,4 +1,4 @@
-MEMO_PATH = "memo_fe"
+MEMO_PATH = "memo_fe/"
 
 #=========================================LOGGING
 import logging
@@ -19,8 +19,11 @@ from scipy.optimize import fmin_powell
 from sklearn.cross_validation import StratifiedKFold, KFold
 from sklearn.metrics import accuracy_score
 from sklearn.dummy import DummyClassifier, DummyRegressor
-from sklearn.linear_model import LogisticRegression, LinearRegression, SGDClassifier, SGDRegressor, Perceptron
+from sklearn.linear_model import LogisticRegression, LinearRegression, SGDClassifier, \
+    SGDRegressor, Perceptron, PassiveAggressiveRegressor, BayesianRidge, Lasso
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, RandomForestRegressor, ExtraTreesRegressor
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import Pipeline
 from sklearn.svm import SVC, SVR
 from xgboost.sklearn import XGBClassifier, XGBRegressor
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
@@ -53,9 +56,9 @@ all_data['Product_Info_2'] = pd.factorize(all_data['Product_Info_2'])[0]
 # FEATURE ENGINEERING
 all_data['bmi_ins_age'] = all_data.BMI * all_data.Ins_Age
 all_data['nan_count'] = all_data.isnull().sum(axis=1)
-all_data['emp_inf_4_sq'] = all_data.Employment_Info_4 ** 2
-all_data['fam_hist_4_sq'] = all_data.Family_Hist_4 ** 2
-all_data['fam_hist_2_sq'] = all_data.Family_Hist_2 ** 2
+#all_data['emp_inf_4_sq'] = all_data.Employment_Info_4 ** 2
+#all_data['fam_hist_4_sq'] = all_data.Family_Hist_4 ** 2
+#all_data['fam_hist_2_sq'] = all_data.Family_Hist_2 ** 2
 
 mk = [col for col in train.columns if col.startswith("Medical_K")]
 all_data['sum_keywords'] = sum(train[col] for col in mk)
@@ -232,6 +235,13 @@ def benchmark_optimized_stacker(stacker, base_clfs):
     info("optimized stacker %s   %s, %s" % (result, stacker, base_clfs))
     return result
 
+def benchmark_optimized_lazy_stacker(stacker, base_clfs):
+    preds = lazy_stacker_train_predictions(stacker, base_clfs)
+    opreds = optimized_train_predictions(preds)
+    result = eval_wrapper(opreds, y)
+    info("optimized stacker %s   %s, %s" % (result, stacker, base_clfs))
+    return result
+
 def optimized_test_predictions(stacker, base_clfs):
     train_preds = stacker_train_predictions(stacker, base_clfs)
     offsets = optimize_offsets(train_preds, y)
@@ -258,13 +268,23 @@ rfr = lambda: RandomForestRegressor(n_estimators=400)
 etr = lambda: ExtraTreesRegressor(n_estimators=400)
 etc = lambda: ExtraTreesClassifier(n_estimators=400)
 sgdr = lambda: SGDRegressor()
+xgbr_poly = lambda: Pipeline([("poly", PolynomialFeatures(degree=2)), ("xgbr", xgbr())])
+linreg_poly = lambda: Pipeline([("poly", PolynomialFeatures(degree=2)), ("linreg", LinearRegression())])
+linreg = lambda: LinearRegression()
+bayes_ridge = lambda: BayesianRidge()
 perceptron = lambda: Perceptron()
+lasso = lambda: Lasso()
+svrsig = lambda: SVR(kernel="sigmoid")
+svrrbf = lambda: SVR(kernel="rbf")
+perc = lambda: Perceptron()
 
-dream_team = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), Perceptron(),
-              #SVR(kernel="linear"), 
-              #SVR(kernel="poly"), 
-              SVR(kernel="sigmoid"),
-              SVR(kernel="rbf")])
+dream_team = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), Perceptron(), xgbr_poly(), linreg_poly(),
+                             bayes_ridge(),
+                             lasso(),
+                             svrsig(),
+                             svrrbf(),
+                             perc()
+                            ])
 
 def make_sub(stacker, base_clfs, filename):
     preds = stacker_test_predictions(stacker, base_clfs)
