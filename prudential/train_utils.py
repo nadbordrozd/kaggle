@@ -3,7 +3,7 @@ MEMO_PATH = "memo_fe/"
 #=========================================LOGGING
 import logging
 # create logger
-logging.basicConfig(filename='feat_engineered.log',level=logging.DEBUG, format="%(asctime)s; %(levelname)s;  %(message)s")
+logging.basicConfig(filename='best_ensemble.log',level=logging.DEBUG, format="%(asctime)s; %(levelname)s;  %(message)s")
 logger = logging.getLogger("trainlo")
 logger.setLevel(logging.DEBUG)
 
@@ -31,6 +31,7 @@ from persistent_cache import memo, PersistentDict as Perd
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.preprocessing import LabelBinarizer, LabelEncoder
 from ml_metrics import quadratic_weighted_kappa
+from feature_engineering import train_test_sets
 
 def eval_wrapper(yhat, y):  
     y = np.array(y)
@@ -41,59 +42,61 @@ def eval_wrapper(yhat, y):
 
 
 num_classes = 8
+# print("Load the data using pandas")
+# train = pd.read_csv("train.csv")
+# test = pd.read_csv("test.csv")
 
+# # combine train and test
+# all_data = train.append(test)
 
-print("Load the data using pandas")
-train = pd.read_csv("train.csv")
-test = pd.read_csv("test.csv")
+# # factorize categorical variables    
+# all_data['Product_Info_2'] = pd.factorize(all_data['Product_Info_2'])[0]
 
-# combine train and test
-all_data = train.append(test)
+# # FEATURE ENGINEERING
+# all_data['bmi_ins_age'] = all_data.BMI * all_data.Ins_Age
+# all_data['nan_count'] = all_data.isnull().sum(axis=1)
+# #all_data['emp_inf_4_sq'] = all_data.Employment_Info_4 ** 2
+# #all_data['fam_hist_4_sq'] = all_data.Family_Hist_4 ** 2
+# #all_data['fam_hist_2_sq'] = all_data.Family_Hist_2 ** 2
 
-# factorize categorical variables    
-all_data['Product_Info_2'] = pd.factorize(all_data['Product_Info_2'])[0]
+# mk = [col for col in train.columns if col.startswith("Medical_K")]
+# all_data['sum_keywords'] = sum(train[col] for col in mk)
 
-# FEATURE ENGINEERING
-all_data['bmi_ins_age'] = all_data.BMI * all_data.Ins_Age
-all_data['nan_count'] = all_data.isnull().sum(axis=1)
-#all_data['emp_inf_4_sq'] = all_data.Employment_Info_4 ** 2
-#all_data['fam_hist_4_sq'] = all_data.Family_Hist_4 ** 2
-#all_data['fam_hist_2_sq'] = all_data.Family_Hist_2 ** 2
-
-mk = [col for col in train.columns if col.startswith("Medical_K")]
-all_data['sum_keywords'] = sum(train[col] for col in mk)
-
-all_data.drop('Medical_History_24')
-all_data.drop('Medical_History_10')
-
-
-
-print('Eliminate missing values')    
-# Use -1 for any others
-all_data.fillna(-1, inplace=True)
-
-# fix the dtype on the label column
-all_data['Response'] = all_data['Response'].astype(int)
-
-# Provide split column
-# all_data['Split'] = np.random.randint(5, size=all_data.shape[0])
-
-# split train and test
-train = all_data[all_data['Response']>0].copy()
-test = all_data[all_data['Response']<1].copy()
-
-
-X = np.array(train.drop(["Id", "Response"], axis=1))
-X_actual_test = np.array(test.drop(["Id", "Response"], axis=1))
-y = np.array(train.Response)
+# all_data.drop('Medical_History_24')
+# all_data.drop('Medical_History_10')
 
 
 
+# print('Eliminate missing values')    
+# # Use -1 for any others
+# all_data.fillna(-1, inplace=True)
 
+# # fix the dtype on the label column
+# all_data['Response'] = all_data['Response'].astype(int)
+
+# # Provide split column
+# # all_data['Split'] = np.random.randint(5, size=all_data.shape[0])
+
+# # split train and test
+# train = all_data[all_data['Response']>0].copy()
+# test = all_data[all_data['Response']<1].copy()
+
+
+# X = np.array(train.drop(["Id", "Response"], axis=1))
+# X_actual_test = np.array(test.drop(["Id", "Response"], axis=1))
+# y = np.array(train.Response)
+
+
+
+
+
+
+y = np.array(pd.read_csv("train.csv").Response)
 train_test_folds = list(StratifiedKFold(y, n_folds=4, random_state=0))
 #================================================================================================
 @memo(Perd(MEMO_PATH + "_train_predictions"))
-def train_predictions(model):
+def train_predictions(model, fe):
+    X, _ = train_test_sets(fe)
     ind2pred = {}
     for i, (train, test) in enumerate(train_test_folds):
         info(("fitting fold   "+str(i+1)+ str(model)[:100]))
@@ -106,7 +109,8 @@ def train_predictions(model):
     return np.array([ind2pred[i] for i in range(len(y))])
 
 @memo(Perd(MEMO_PATH + "_test_predictions"))
-def test_predictions(model):
+def test_predictions(model, fe):
+    X, X_actual_test = train_test_sets(fe)
     info("fitting (on full train set) %s" % model)
     model.fit(X, y)
     info("done fitting for %s" % model)
@@ -114,10 +118,11 @@ def test_predictions(model):
 
 
 @memo(Perd(MEMO_PATH + "_stacker_train_predictions"))
-def stacker_train_predictions(stacker, base_clfs):
+def stacker_train_predictions(stacker, base_clfs, fe):
+    X, _ = train_test_sets(fe)
     info("start stacker --------------------------")
     n = len(y)
-    stacked_X = np.hstack([X] + [train_predictions(clf).reshape(n, 1) for clf in base_clfs])
+    stacked_X = np.hstack([X] + [train_predictions(clf, fe).reshape(n, 1) for clf in base_clfs])
     info("base regressors done")
     ind2pred = {}
     for i, (train, test) in enumerate(train_test_folds):
@@ -132,10 +137,10 @@ def stacker_train_predictions(stacker, base_clfs):
     return np.array([ind2pred[i] for i in range(len(y))])
 
 @memo(Perd(MEMO_PATH + "_lazy_stacker_train_predictions"))
-def lazy_stacker_train_predictions(stacker, base_clfs):
+def lazy_stacker_train_predictions(stacker, base_clfs, fe):
     info("start stacker --------------------------")
     n = len(y)
-    stacked_X = np.hstack([train_predictions(clf).reshape(n, 1) for clf in base_clfs])
+    stacked_X = np.hstack([train_predictions(clf, fe).reshape(n, 1) for clf in base_clfs])
     info("base regressors done")
     ind2pred = {}
     for i, (train, test) in enumerate(train_test_folds):
@@ -151,34 +156,33 @@ def lazy_stacker_train_predictions(stacker, base_clfs):
 
 
 @memo(Perd(MEMO_PATH + "_stacker_test_predictions"))
-def stacker_test_predictions(stacker, base_clfs):
+def stacker_test_predictions(stacker, base_clfs, fe):
     n = len(y)
-    print "train length = %s" % n
-    stacked_X = np.hstack([X] + [train_predictions(clf).reshape(n, 1) for clf in base_clfs])
+    stacked_X = np.hstack([X] + [train_predictions(clf, fe).reshape(n, 1) for clf in base_clfs])
     stacker.fit(stacked_X, y)
     nn = X_actual_test.shape[0]
-    print "test length = %s" % nn
-    stacked_test_X = np.hstack([X_actual_test] + [test_predictions(clf).reshape(nn, 1) for clf in base_clfs])
+    stacked_test_X = np.hstack([X_actual_test] + [test_predictions(clf, fe).reshape(nn, 1) for clf in base_clfs])
     return stacker.predict(stacked_test_X)
 #============================================================================
-def benchmark(model):
-    pred = train_predictions(model)
+def benchmark(model, fe):
+    pred = train_predictions(model, fe)
     return eval_wrapper(pred, y)
 
-def make_predictions(model):
+def make_predictions(model, fe):
+    X, X_actual_test = train_test_sets(fe)
     model.fit(X, y)
     return model.predict(X_actual_test)
 
-def benchmark_stacker(model, base_clfs):
-    pred = stacker_train_predictions(model, base_clfs)
+def benchmark_stacker(model, base_clfs, fe):
+    pred = stacker_train_predictions(model, base_clfs, fe)
     result = eval_wrapper(pred, y)
-    info("stacker %s   %s, %s" % (result, model, base_clfs))
+    info("stacker %.4f   %s, %s, feats = %s" % (result, model, base_clfs, fe))
     return result
 
-def benchmark_lazy_stacker(model, base_clfs):
-    pred = lazy_stacker_train_predictions(model, base_clfs)
+def benchmark_lazy_stacker(model, base_clfs, fe):
+    pred = lazy_stacker_train_predictions(model, base_clfs, fe)
     result = eval_wrapper(pred, y)
-    info("lazy stacker %s   %s, %s" % (result, model, base_clfs))
+    info("lazy stacker %.4f   %s, %s  feats = %s" % (result, model, base_clfs, fe))
     
     return result
 #==============================================================================
@@ -222,43 +226,53 @@ def optimized_train_predictions(raw_train_predictions):
             ind2pred[i] = p
     return np.array([ind2pred[i] for i in range(len(y))])
 
-def benchmark_model_optimized(model):
-    preds = optimized_train_predictions(train_predictions(model))
+def benchmark_model_optimized(model, fe):
+    preds = optimized_train_predictions(train_predictions(model, fe))
     result = eval_wrapper(preds, y)
-    info("optimized %s   %s" % (result, model))
+    info("optimized %.4f   %s  %s" % (result, model, fe))
     return result
 
-def benchmark_optimized_stacker(stacker, base_clfs):
-    preds = stacker_train_predictions(stacker, base_clfs)
+def benchmark_optimized_stacker(stacker, base_clfs, fe):
+    preds = stacker_train_predictions(stacker, base_clfs, fe)
     opreds = optimized_train_predictions(preds)
     result = eval_wrapper(opreds, y)
-    info("optimized stacker %s   %s, %s" % (result, stacker, base_clfs))
+    info("optimized stacker %.4f   %s, %s,  feats=%s" % (result, stacker, base_clfs, fe))
     return result
 
-def benchmark_optimized_lazy_stacker(stacker, base_clfs):
-    preds = lazy_stacker_train_predictions(stacker, base_clfs)
+def benchmark_optimized_lazy_stacker(stacker, base_clfs, fe):
+    preds = lazy_stacker_train_predictions(stacker, base_clfs, fe)
     opreds = optimized_train_predictions(preds)
     result = eval_wrapper(opreds, y)
-    info("optimized stacker %s   %s, %s" % (result, stacker, base_clfs))
+    info("optimized stacker %.4f   %s, %s   feats=%s" % (result, stacker, base_clfs, fe))
     return result
 
-def optimized_test_predictions(stacker, base_clfs):
-    train_preds = stacker_train_predictions(stacker, base_clfs)
+def optimized_test_predictions(stacker, base_clfs, fe):
+    train_preds = stacker_train_predictions(stacker, base_clfs, fe)
     offsets = optimize_offsets(train_preds, y)
-    test_preds = stacker_test_predictions(stacker, base_clfs)
+    test_preds = stacker_test_predictions(stacker, base_clfs, fe)
     final_test_preds = actually_apply_offsets(test_preds, offsets)
     #print "print len(train_preds), len(test_preds), len(final_test_preds)"
     #print len(train_preds), len(test_preds), len(final_test_preds)
+    info("made optimized predictions for stacker %s with features %s and base regressors %s" % (stacker, fe, base_clfs))
     return final_test_preds
 
-def make_sub_optimized(stacker, base_clfs, filename):
-    preds = optimized_test_predictions(stacker, base_clfs)
+def make_sub_optimized(stacker, base_clfs, fe, filename):
+    preds = optimized_test_predictions(stacker, base_clfs, fe)
     #print "len(preds)"
     #print len(preds)
     df = pd.DataFrame()
     df['Id'] = test.Id
     df['Response'] = preds
-
+    info("made submission to file %s. stacker %s, features %s" % (filename, stacker, fe))
+    df.to_csv(filename, index=False)
+    
+def make_sub(stacker, base_clfs, fe, filename):
+    preds = stacker_test_predictions(stacker, base_clfs, fe)
+    
+    df = pd.DataFrame()
+    df['Id'] = test.Id
+    df['Response'] = preds
+    info("making stacker %s, nonoptimized submission to file %s " % (stacker, filename))
     df.to_csv(filename, index=False)
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -272,25 +286,16 @@ xgbr_poly = lambda: Pipeline([("poly", PolynomialFeatures(degree=2)), ("xgbr", x
 linreg_poly = lambda: Pipeline([("poly", PolynomialFeatures(degree=2)), ("linreg", LinearRegression())])
 linreg = lambda: LinearRegression()
 bayes_ridge = lambda: BayesianRidge()
-perceptron = lambda: Perceptron()
 lasso = lambda: Lasso()
 svrsig = lambda: SVR(kernel="sigmoid")
 svrrbf = lambda: SVR(kernel="rbf")
 perc = lambda: Perceptron()
 
-dream_team = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), Perceptron(), xgbr_poly(), linreg_poly(),
+dream_team = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), 
+                             #xgbr_poly(), linreg_poly(),
                              bayes_ridge(),
                              lasso(),
                              svrsig(),
-                             svrrbf(),
+                             #svrrbf(),
                              perc()
                             ])
-
-def make_sub(stacker, base_clfs, filename):
-    preds = stacker_test_predictions(stacker, base_clfs)
-    
-    df = pd.DataFrame()
-    df['Id'] = test.Id
-    df['Response'] = preds
-
-    df.to_csv(filename, index=False)
