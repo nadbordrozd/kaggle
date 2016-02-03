@@ -24,15 +24,25 @@ info("start train.py $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
 #info("making submission for linreg optimized")
 #make_sub_optimized(LinearRegression(), dream_team(), "lin_opt.csv")
 
-bos = benchmark_optimized_stacker
+f_extractors = ['basic',
+ 'feats1',
+ 'ohmed',
+ 'oh_km10',
+ 'oh_km20',
+ 'fe1_km10',
+ 'fe1_km20']
+     
+for f in f_extractors:
+    benchmark_model_optimized(xgbr(), f)
+#bos = benchmark_optimized_stacker
 
-bos(LinearRegression(), dream_team())
+#bos(LinearRegression(), dream_team())
 
-for i in range(len(dream_team())):
-    dt = dream_team()
-    info("testing dream team minus %s" % dt[i])
-    new_team = dt[0:i] + dt[i+1:len(dt)]
-    bos(LinearRegression(), new_team)
+#for i in range(len(dream_team())):
+#    dt = dream_team()
+#    info("testing dream team minus %s" % dt[i])
+#    new_team = dt[0:i] + dt[i+1:len(dt)]
+#    bos(LinearRegression(), new_team)
     
 
 
