@@ -1,5 +1,5 @@
 MEMO_PATH = "memo_fe/"
-
+JOBLIB_MEMO_PATH = "train_cache/"
 #=========================================LOGGING
 import logging
 # create logger
@@ -32,6 +32,7 @@ from sklearn.multiclass import OneVsRestClassifier
 from sklearn.preprocessing import LabelBinarizer, LabelEncoder
 from ml_metrics import quadratic_weighted_kappa
 from feature_engineering import train_test_sets
+from joblib import Memory
 
 def eval_wrapper(yhat, y):  
     y = np.array(y)
@@ -48,7 +49,23 @@ y = np.array(pd.read_csv("train.csv").Response)
 test_id = np.array(pd.read_csv("test.csv").Id)
 train_test_folds = list(StratifiedKFold(y, n_folds=4, random_state=0))
 #================================================================================================
-@memo(Perd(MEMO_PATH + "_train_predictions"))
+
+mini_train_memo = Memory(cachedir=JOBLIB_MEMO_PATH+"mini_train", verbose=0)
+@mini_train_memo.cache
+def mini_train_predictions(model, X, y, train_test_folds):
+    ind2pred = {}
+    for i, (train, test) in enumerate(train_test_folds):
+        info(("fitting MINIfold   "+str(i+1)+ str(model)[:100]))
+        model.fit(X[train], y[train])
+        info(("MINIfold fitted    "+str(i+1)+  str(model)[:100]))
+        preds = model.predict(X[test])
+        for i, p in zip(test, preds):
+            ind2pred[i] = p
+    
+    return np.array([ind2pred[i] for i in range(len(y))])
+
+train_pred_memo = Memory(cachedir=JOBLIB_MEMO_PATH+"train_predictions", verbose=0)
+@train_pred_memo.cache
 def train_predictions(model, fe):
     X, _ = train_test_sets(fe)
     ind2pred = {}
@@ -170,6 +187,8 @@ def actually_apply_offsets(predictions, offsets):
     final_test_preds = np.round(np.clip(data[1], 1, 8)).astype(int)
     return final_test_preds
 
+opt_train_pred_memo = Memory(cachedir=JOBLIB_MEMO_PATH+"opt_train_pred", verbose=0)
+@opt_train_pred_memo.cache
 def optimized_train_predictions(raw_train_predictions):
     n = len(y)
     ind2pred = {}
@@ -230,6 +249,29 @@ def make_sub(stacker, base_clfs, fe, filename):
     info("making stacker %s, nonoptimized submission to file %s " % (stacker, filename))
     df.to_csv(filename, index=False)
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+class Stacker(object):
+    def __init__(self, stacker, base_models, folds=4):
+        self.folds = folds
+        self.base_models = sorted(base_models)
+        self.stacker = stacker
+        
+    def fit(self, X, y):
+        folds = list(StratifiedKFold(y, n_folds=self.folds, random_state=0))
+        base_preds = [mini_train_predictions(m, X, y, folds) for m in self.base_models]
+        n = len(y)
+        XX = np.hstack([X] + [p.reshape(n, 1) for p in base_preds])
+        print "fit", XX.shape
+        self.stacker.fit(XX, y)
+        for m in self.base_models:
+            m.fit(X, y)
+        return self
+    
+    def predict(self, X):
+        n = X.shape[0]
+        XX = np.hstack([X] + [m.predict(X).reshape(n, 1) for m in self.base_models])
+        print "predict", XX.shape
+        return self.stacker.predict(XX)
+    
 
 xgbr = lambda: XGBRegressor(objective="reg:linear", min_child_weight=80, subsample=0.85, colsample_bytree=0.30, silent=1, max_depth=9)
 xgbc = lambda: XGBClassifier(objective="reg:linear", min_child_weight=80, subsample=0.85, colsample_bytree=0.30, silent=1, max_depth=9)
@@ -245,6 +287,7 @@ lasso = lambda: Lasso()
 svrsig = lambda: SVR(kernel="sigmoid")
 svrrbf = lambda: SVR(kernel="rbf")
 perc = lambda: Perceptron()
+stacker0 = lambda: Stacker(linreg(), [linreg(), xgbr()], 4)
 
 dream_team = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), 
                              #xgbr_poly(), linreg_poly(),
