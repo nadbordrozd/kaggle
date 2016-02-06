@@ -63,9 +63,9 @@ def oh_med():
     return X, X_actual_test
 
 def oh_med_cut():
-    x, xx = fe.oh_med()
-    y = fe.get_y()
-    return fe.cut_uncorrelated(x, xx, y, 0.01)
+    x, xx = train_test_sets("ohmed")
+    y = get_y()
+    return cut_uncorrelated(x, xx, y, 0.01)
 
 def read_all_data():
     train = pd.read_csv("train.csv")
@@ -112,7 +112,7 @@ def fe2():
     #all_data['fam_hist_2_sq'] = all_data.Family_Hist_2 ** 2
 
     mk = [col for col in all_data.columns if col.startswith("Medical_K")]
-    all_data['sum_keywords'] = sum(train[col] for col in mk)
+    all_data['sum_keywords'] = sum(all_data[col] for col in mk)
 
     all_data.drop('Medical_History_24')
     all_data.drop('Medical_History_10')

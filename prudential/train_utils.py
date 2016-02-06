@@ -45,6 +45,7 @@ num_classes = 8
 
 
 y = np.array(pd.read_csv("train.csv").Response)
+test_id = np.array(pd.read_csv("test.csv").Id)
 train_test_folds = list(StratifiedKFold(y, n_folds=4, random_state=0))
 #================================================================================================
 @memo(Perd(MEMO_PATH + "_train_predictions"))
@@ -111,6 +112,7 @@ def lazy_stacker_train_predictions(stacker, base_clfs, fe):
 @memo(Perd(MEMO_PATH + "_stacker_test_predictions"))
 def stacker_test_predictions(stacker, base_clfs, fe):
     n = len(y)
+    X, X_actual_test = train_test_sets(fe)
     stacked_X = np.hstack([X] + [train_predictions(clf, fe).reshape(n, 1) for clf in base_clfs])
     stacker.fit(stacked_X, y)
     nn = X_actual_test.shape[0]
@@ -214,7 +216,7 @@ def make_sub_optimized(stacker, base_clfs, fe, filename):
     #print "len(preds)"
     #print len(preds)
     df = pd.DataFrame()
-    df['Id'] = test.Id
+    df['Id'] = test_id
     df['Response'] = preds
     info("made submission to file %s. stacker %s, features %s" % (filename, stacker, fe))
     df.to_csv(filename, index=False)
