@@ -135,7 +135,27 @@ def fe2():
     y = np.array(train.Response)
     return X, X_actual_test
 
+def fe2_median():
+    """not one-hot encoded
+    """
+    all_data = read_all_data()
+    all_data.fillna(all_data.median(), inplace=True)
 
+    # FEATURE ENGINEERING
+    all_data['bmi_ins_age'] = all_data.BMI * all_data.Ins_Age
+    all_data['nan_count'] = all_data.isnull().sum(axis=1)
+    mk = [col for col in all_data.columns if col.startswith("Medical_K")]
+    all_data['sum_keywords'] = sum(all_data[col] for col in mk)
+    all_data.drop('Medical_History_24')
+    all_data.drop('Medical_History_10')
+    all_data['Response'] = all_data['Response'].astype(int)
+    train = all_data[all_data['Response']>0].copy()
+    test = all_data[all_data['Response']<1].copy()
+    X = np.array(train.drop(["Id", "Response"], axis=1))
+    X_actual_test = np.array(test.drop(["Id", "Response"], axis=1))
+    y = np.array(train.Response)
+    return X, X_actual_test
+ 
 def kmeans_feats(X, clusters=10):
     X = Normalizer().transform(X)
     kmeans = MiniBatchKMeans(n_clusters=clusters, random_state=0)
@@ -205,6 +225,7 @@ extractors = {
     'fe2_km10': fe2_km10,
     'fe2_km20': fe2_km20,
     'fe2_km40': fe2_km40,
+    "fe2_median": fe2_median,
     'oh_med_cut': oh_med_cut
 }
 
