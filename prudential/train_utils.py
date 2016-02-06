@@ -111,6 +111,7 @@ def lazy_stacker_train_predictions(stacker, base_clfs, fe):
 @memo(Perd(MEMO_PATH + "_stacker_test_predictions"))
 def stacker_test_predictions(stacker, base_clfs, fe):
     n = len(y)
+    X, X_actual_test = train_test_sets(fe)
     stacked_X = np.hstack([X] + [train_predictions(clf, fe).reshape(n, 1) for clf in base_clfs])
     stacker.fit(stacked_X, y)
     nn = X_actual_test.shape[0]
