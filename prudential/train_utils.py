@@ -3,12 +3,12 @@ MEMO_PATH = "memo_fe/"
 #=========================================LOGGING
 import logging
 # create logger
-logging.basicConfig(filename='best_ensemble.log',level=logging.DEBUG, format="%(asctime)s; %(levelname)s;  %(message)s")
+logging.basicConfig(filename='newlog.log',level=logging.DEBUG, format="%(asctime)s; %(levelname)s;  %(message)s")
 logger = logging.getLogger("trainlo")
 logger.setLevel(logging.DEBUG)
 
 def info(msg):
-    logger.info(msg.replace("\n", "  "))
+    logger.info(msg)
 #=========================================LOGGING
 
 import sys
@@ -42,53 +42,6 @@ def eval_wrapper(yhat, y):
 
 
 num_classes = 8
-# print("Load the data using pandas")
-# train = pd.read_csv("train.csv")
-# test = pd.read_csv("test.csv")
-
-# # combine train and test
-# all_data = train.append(test)
-
-# # factorize categorical variables    
-# all_data['Product_Info_2'] = pd.factorize(all_data['Product_Info_2'])[0]
-
-# # FEATURE ENGINEERING
-# all_data['bmi_ins_age'] = all_data.BMI * all_data.Ins_Age
-# all_data['nan_count'] = all_data.isnull().sum(axis=1)
-# #all_data['emp_inf_4_sq'] = all_data.Employment_Info_4 ** 2
-# #all_data['fam_hist_4_sq'] = all_data.Family_Hist_4 ** 2
-# #all_data['fam_hist_2_sq'] = all_data.Family_Hist_2 ** 2
-
-# mk = [col for col in train.columns if col.startswith("Medical_K")]
-# all_data['sum_keywords'] = sum(train[col] for col in mk)
-
-# all_data.drop('Medical_History_24')
-# all_data.drop('Medical_History_10')
-
-
-
-# print('Eliminate missing values')    
-# # Use -1 for any others
-# all_data.fillna(-1, inplace=True)
-
-# # fix the dtype on the label column
-# all_data['Response'] = all_data['Response'].astype(int)
-
-# # Provide split column
-# # all_data['Split'] = np.random.randint(5, size=all_data.shape[0])
-
-# # split train and test
-# train = all_data[all_data['Response']>0].copy()
-# test = all_data[all_data['Response']<1].copy()
-
-
-# X = np.array(train.drop(["Id", "Response"], axis=1))
-# X_actual_test = np.array(test.drop(["Id", "Response"], axis=1))
-# y = np.array(train.Response)
-
-
-
-
 
 
 y = np.array(pd.read_csv("train.csv").Response)

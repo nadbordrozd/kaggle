@@ -100,7 +100,13 @@ def memo(cache, key_fun=None):
             if key in cache:
                 return cache[key]
             else:
-                cache[key] = result = f(*args, **kwargs)
+                # TODO: this is broken. had to trycatch because large results were causing
+                # pickle.dumps to overflow
+                result = f(*args, **kwargs)
+                try:
+                    cache[key] = result
+                except:
+                    pass
                 return result
         return decorator(wrapper, f)
     return internalFunc

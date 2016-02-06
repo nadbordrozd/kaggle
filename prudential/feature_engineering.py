@@ -4,8 +4,20 @@ import numpy as np
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.preprocessing import Normalizer
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-MEMO_PATH = "memo_fe/"
+from joblib import Memory
 
+def get_y():
+    train = pd.read_csv("train.csv")
+    return train.Response
+
+def cut_uncorrelated(X_train, X_test, y, threshold):
+    corrs = []
+    for i in range(X_train.shape[1]):
+        corrs.append(np.corrcoef(X_train[:, i], y)[0][1])
+    good_corrs = filter(lambda (_, x): abs(x) > threshold, enumerate(corrs))
+    good_inds = [i for i, _ in good_corrs]
+    return X_train[:, good_inds], X_test[:, good_inds]
+    
 def oh_med():
     categorical = {'Product_Info_1', 'Product_Info_2', 'Product_Info_3', 'Product_Info_5', 'Product_Info_6', 
                    'Product_Info_7', 'Employment_Info_2', 'Employment_Info_3', 'Employment_Info_5', 
@@ -24,7 +36,7 @@ def oh_med():
     #                'Medical_History_38', 
                    'Medical_History_39', 'Medical_History_40', 'Medical_History_41','Medical_History_1', 
                    'Medical_History_15', 'Medical_History_24', 'Medical_History_32'}
-
+    #return np.random.random((2*10**5, 10**3)), np.random.random((2*10**4, 10**3))
     train = pd.read_csv("train.csv")
     test = pd.read_csv("test.csv")
     total = pd.concat([train, test])
@@ -46,9 +58,14 @@ def oh_med():
     X_actual_test = np.array(test[feature_cols])
 
     oh_encoder.fit(X)
-    X = oh_encoder.transform(X).todense()
-    X_actual_test = oh_encoder.transform(X_actual_test).todense()
+    X = np.array(oh_encoder.transform(X).todense())
+    X_actual_test = np.array(oh_encoder.transform(X_actual_test).todense())
     return X, X_actual_test
+
+def oh_med_cut():
+    x, xx = fe.oh_med()
+    y = fe.get_y()
+    return fe.cut_uncorrelated(x, xx, y, 0.01)
 
 def read_all_data():
     train = pd.read_csv("train.csv")
@@ -56,7 +73,7 @@ def read_all_data():
 
     # combine train and test
     all_data = train.append(test)
-
+    all_data.Response.fillna(-1, inplace=True)
     # factorize categorical variables    
     all_data['Product_Info_2'] = pd.factorize(all_data['Product_Info_2'])[0]
     return all_data
@@ -81,11 +98,12 @@ def basic_extractor():
     return X, X_actual_test
 
 
-def fe1():
+def fe2():
     """not one-hot encoded
     """
     all_data = read_all_data()
 
+    
     # FEATURE ENGINEERING
     all_data['bmi_ins_age'] = all_data.BMI * all_data.Ins_Age
     all_data['nan_count'] = all_data.isnull().sum(axis=1)
@@ -93,7 +111,7 @@ def fe1():
     #all_data['fam_hist_4_sq'] = all_data.Family_Hist_4 ** 2
     #all_data['fam_hist_2_sq'] = all_data.Family_Hist_2 ** 2
 
-    mk = [col for col in train.columns if col.startswith("Medical_K")]
+    mk = [col for col in all_data.columns if col.startswith("Medical_K")]
     all_data['sum_keywords'] = sum(train[col] for col in mk)
 
     all_data.drop('Medical_History_24')
@@ -111,7 +129,6 @@ def fe1():
     # split train and test
     train = all_data[all_data['Response']>0].copy()
     test = all_data[all_data['Response']<1].copy()
-
 
     X = np.array(train.drop(["Id", "Response"], axis=1))
     X_actual_test = np.array(test.drop(["Id", "Response"], axis=1))
@@ -140,9 +157,18 @@ def kmeans_20():
     tot = np.hstack([tot, kmeans])
     return tot[:n, :], tot[n:, :]
 
+def kmeans_40():
+    X, X_test = train_test_sets("ohmed")
+    n, _ = X.shape
+    tot = np.vstack([X, X_test])
+    kmeans = kmeans_feats(tot, clusters=40)
+    tot = np.hstack([tot, kmeans])
+    return tot[:n, :], tot[n:, :]
+
 def combine(fextractors):
     trains, tests = [], []
-    for train, test in [train_test_sets(f) for f in fextractors]:
+    for f in fextractors:
+        train, test = train_test_sets(f)
         trains.append(train)
         tests.append(test)
     return np.hstack(trains), np.hstack(tests)    
@@ -153,26 +179,37 @@ def oh_km10():
 def oh_km20():
     return combine(["ohmed", "kmeans20"])
 
-def fe1_km10():
-    return combine(["feats1", "kmeans10"])
+def oh_km40():
+    return combine(["ohmed", "kmeans40"])
 
-def fe1_km20():
-    return combine(["feats1", "kmeans20"])
 
+def fe2_km10():
+    return combine(["feats2", "kmeans10"])
+
+def fe2_km20():
+    return combine(["feats2", "kmeans20"])
+
+def fe2_km40():
+    return combine(["feats2", "kmeans40"])
 
 extractors = {
     'basic': basic_extractor,
-    'feats1': fe1,
+    'feats2': fe2,
     'ohmed': oh_med,
     'kmeans10': kmeans_10,
     'kmeans20': kmeans_20,
+    'kmeans40': kmeans_40,
     'oh_km10': oh_km10,
     'oh_km20': oh_km20,
-    'fe1_km10': fe1_km10,
-    'fe1_km20': fe1_km20
+    'oh_km40': oh_km40,
+    'fe2_km10': fe2_km10,
+    'fe2_km20': fe2_km20,
+    'fe2_km40': fe2_km40,
+    'oh_med_cut': oh_med_cut
 }
 
-@memo(Perd(MEMO_PATH + "feature_extraction"))
+memo = Memory(cachedir="fecache/traintestset", verbose=0)
+@memo.cache
 def train_test_sets(extractor_name):
     """extractor_name one of:
     'basic'
