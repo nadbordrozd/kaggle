@@ -185,6 +185,8 @@ def kmeans_40():
     tot = np.hstack([tot, kmeans])
     return tot[:n, :], tot[n:, :]
 
+combiner_memo = Memory(cachedir="fecache/combiner", verbose=0)
+@combiner_memo.cache
 def combine(fextractors):
     trains, tests = [], []
     for f in fextractors:

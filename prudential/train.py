@@ -16,49 +16,13 @@ f_extractors = ['basic',
  'fe2_median'
  ]
      
+f_extractors = ['basic', 'oh_med_cut', "fe2_km20", "fe2_km10"]
+models = [st_lazy_hard, st_hard_lazy, st_hard_hard, st_lazy_lazy]
 for f in f_extractors:
-    benchmark_model_optimized(xgbr(), f)
-
-import traceback
-for f in f_extractors:
-    try:
-        benchmark_model_optimized(linreg(), f)
-    except:
-        trace = traceback.format_exc()
-        info("linreg FAILED  features = %s" % f)
-        info(trace)
-        
-    
-info("middle ,,,,,,,.....................,,,,,,,")
-for f in f_extractors:
-    info("training stacker with lin([lin, xgb])  feats = %s" % f)
-    team = sorted([
-            linreg(),
-            xgbr()
-           ])
-    try:
-        benchmark_optimized_stacker(linreg(), team, f)
-    except:
-        trace = traceback.format_exc()
-        info("dream team FAILED  features = %s" % f)
-        info(trace)
-
-
-
-info("upper middle ,,,,,,,.....................,,,,,,,")
-for f in f_extractors:
-    info("training stacker with lin([lin, xgb, etr, svr])  feats = %s" % f)
-    team = sorted([
-            linreg(),
-            xgbr(), 
-            etr(),
-            svrsig()
-           ])
-    try:
-        benchmark_optimized_stacker(linreg(), team, f)
-    except:
-        trace = traceback.format_exc()
-        info("dream team FAILED  features = %s" % f)
-        info(trace)
+    for m in models:
+        result = benchmark(m(), f)
+        info("FULL CV %s  got  %.3f  kappa score, feats = %s" % (m(), result, f))
+        result = lazy_benchmark(m(), f)
+        info("ONE-FOLD CV %s  got  %.3f  kappa score, feats = %s" % (m(), result, f))
 
 info("train.py done :::::::::::::::::::::::::::::::::::::::::::::::::::::::::")

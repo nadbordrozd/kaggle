@@ -166,7 +166,8 @@ def apply_offset(data, bin_offset, sv, scorer=eval_wrapper):
     score = scorer(data[1], data[2])
     return score
 
-
+offsets_memo = Memory(cachedir=JOBLIB_MEMO_PATH+"offsets", verbose=0)
+@offsets_memo.cache
 def optimize_offsets(predictions, y):
     # train offsets
     info("optimising offsets %s" % len(y))
@@ -248,30 +249,67 @@ def make_sub(stacker, base_clfs, fe, filename):
     df['Response'] = preds
     info("making stacker %s, nonoptimized submission to file %s " % (stacker, filename))
     df.to_csv(filename, index=False)
+    
+    
+def lazy_benchmark(model, fe):
+    X, _ = train_test_sets(fe)
+    train_inds, test_inds = train_test_folds[0]
+    X_train = X[train_inds]
+    X_test = X[test_inds]
+    y_train = y[train_inds]
+    y_test = y[test_inds]
+    model.fit(X_train, y_train)
+    test_preds = model.predict(X_test)
+    result = eval_wrapper(test_preds, y_test)
+    return result
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 class Stacker(object):
-    def __init__(self, stacker, base_models, folds=4):
+    def __init__(self, stacker, base_models, folds=4, lazy_opt=True, lazy_stack=False, name="unnamed_stacker"):
         self.folds = folds
         self.base_models = sorted(base_models)
         self.stacker = stacker
-        
+        self.name = name
+        self.offsets = None
+        self.lazy_stack = lazy_stack
+        self.lazy_opt = lazy_opt
+
     def fit(self, X, y):
         folds = list(StratifiedKFold(y, n_folds=self.folds, random_state=0))
         base_preds = [mini_train_predictions(m, X, y, folds) for m in self.base_models]
         n = len(y)
-        XX = np.hstack([X] + [p.reshape(n, 1) for p in base_preds])
-        print "fit", XX.shape
-        self.stacker.fit(XX, y)
+            
+        XX = np.hstack(([] if self.lazy_stack else [X])
+                       + [p.reshape(n, 1) for p in base_preds])
+        
         for m in self.base_models:
             m.fit(X, y)
+        if self.lazy_opt:
+            self.stacker.fit(XX, y)
+            train_preds = self.stacker.predict(XX)
+            self.offsets = optimize_offsets(train_preds, y)
+        else:
+            buncha_offsets = []
+            for train_inds, test_inds in folds:
+                train_X = XX[train_inds]
+                train_y = y[train_inds]
+                test_X = XX[test_inds]
+                test_y = y[test_inds]
+                self.stacker.fit(train_X, train_y)
+                buncha_offsets.append(optimize_offsets(self.stacker.predict(test_X), test_y))
+            self.offsets = np.vstack(buncha_offsets).mean(axis=0)
+            self.stacker.fit(XX, y)
         return self
     
     def predict(self, X):
         n = X.shape[0]
-        XX = np.hstack([X] + [m.predict(X).reshape(n, 1) for m in self.base_models])
-        print "predict", XX.shape
-        return self.stacker.predict(XX)
+        XX = np.hstack(([] if self.lazy_stack else [X])
+                       + [m.predict(X).reshape(n, 1) for m in self.base_models])
+        return actually_apply_offsets(self.stacker.predict(XX), self.offsets)
     
+    def __str__(self):
+        return self.name
+                 
+                 
 
 xgbr = lambda: XGBRegressor(objective="reg:linear", min_child_weight=80, subsample=0.85, colsample_bytree=0.30, silent=1, max_depth=9)
 xgbc = lambda: XGBClassifier(objective="reg:linear", min_child_weight=80, subsample=0.85, colsample_bytree=0.30, silent=1, max_depth=9)
@@ -287,7 +325,10 @@ lasso = lambda: Lasso()
 svrsig = lambda: SVR(kernel="sigmoid")
 svrrbf = lambda: SVR(kernel="rbf")
 perc = lambda: Perceptron()
-stacker0 = lambda: Stacker(linreg(), [linreg(), xgbr()], 4)
+st_lazy_hard = lambda: Stacker(linreg(), [linreg(), xgbr()], 4, lazy_opt=True, lazy_stack=False, name="lin(lin,xgb),4,lazy_opt,full_feat")
+st_hard_hard = lambda: Stacker(linreg(), [linreg(), xgbr()], 4, lazy_opt=False, lazy_stack=False, name="lin(lin,xgb),4,hard_opt,full_feat")
+st_hard_lazy = lambda: Stacker(linreg(), [linreg(), xgbr()], 4, lazy_opt=False, lazy_stack=True, name="lin(lin,xgb),4,hard_opt,no_feat")
+st_lazy_lazy = lambda: Stacker(linreg(), [linreg(), xgbr()], 4, lazy_opt=True, lazy_stack=True, name="lin(lin,xgb),4,lazy_opt,no_feat")
 
 dream_team = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), 
                              #xgbr_poly(), linreg_poly(),
