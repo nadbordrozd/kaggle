@@ -1,5 +1,5 @@
 from train_utils import *
-
+import traceback
     
 info("start train.py $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
 
@@ -16,13 +16,40 @@ f_extractors = ['basic',
  'fe2_median'
  ]
      
-f_extractors = ['basic', 'oh_med_cut', "fe2_km20", "fe2_km10"]
-models = [st_lazy_hard, st_hard_lazy, st_hard_hard, st_lazy_lazy]
-for f in f_extractors:
-    for m in models:
-        result = benchmark(m(), f)
-        info("FULL CV %s  got  %.3f  kappa score, feats = %s" % (m(), result, f))
-        result = lazy_benchmark(m(), f)
-        info("ONE-FOLD CV %s  got  %.3f  kappa score, feats = %s" % (m(), result, f))
+f_extractors = ['basic', 'oh_med_cut', "fe2_km20", "fe2_median"]
 
+
+models = [
+    lin_mini_team,
+    etr_mini_team,
+    xgbr_mini_team,
+    lin_mini_bayes,
+    lin_mini_lasso,
+    lin_mini_perc,
+    lin_mini_svrrbf,
+    lin_dream,
+    lin_dream
+]
+
+for f in  ['oh_med_cut', "feats2"]:
+    for m in models:
+        try:
+            result = lazy_benchmark(m(), f)
+            info("ONE-FOLD CV got  %.3f    %s   kappa score, feats = %s" % (result, m(), f))
+        except:
+            s = traceback.format_exc()
+            info("fucking error while training %s  on features %s" % (m(), f))
+            info(s)
+
+info("one - folders done")
+for f in  ['oh_med_cut', "feats2"]:
+    for m in models:
+        try:
+            result = benchmark(m(), f)
+            info("FULL CV got  %.3f    %s   kappa score, feats = %s" % (result, m(), f))
+        except:
+            s = traceback.format_exc()
+            info("fucking error while training %s  on features %s" % (m(), f))
+            info(s)
+        
 info("train.py done :::::::::::::::::::::::::::::::::::::::::::::::::::::::::")

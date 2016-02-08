@@ -325,16 +325,40 @@ lasso = lambda: Lasso()
 svrsig = lambda: SVR(kernel="sigmoid")
 svrrbf = lambda: SVR(kernel="rbf")
 perc = lambda: Perceptron()
+"""
 st_lazy_hard = lambda: Stacker(linreg(), [linreg(), xgbr()], 4, lazy_opt=True, lazy_stack=False, name="lin(lin,xgb),4,lazy_opt,full_feat")
 st_hard_hard = lambda: Stacker(linreg(), [linreg(), xgbr()], 4, lazy_opt=False, lazy_stack=False, name="lin(lin,xgb),4,hard_opt,full_feat")
 st_hard_lazy = lambda: Stacker(linreg(), [linreg(), xgbr()], 4, lazy_opt=False, lazy_stack=True, name="lin(lin,xgb),4,hard_opt,no_feat")
 st_lazy_lazy = lambda: Stacker(linreg(), [linreg(), xgbr()], 4, lazy_opt=True, lazy_stack=True, name="lin(lin,xgb),4,lazy_opt,no_feat")
+st1_ff = lambda: Stacker(linreg(), [linreg(), xgbr()], 4, lazy_stack=False, name="lin(lin,xgb),4,full_feat")
+st1_nf = lambda: Stacker(linreg(), [linreg(), xgbr()], 4, lazy_stack=True, name="lin(lin,xgb),4,no_feat")
+st2_ff = lambda: Stacker(xgbr(), [linreg(), xgbr()], 4, lazy_stack=False, name="xgbr(lin,xgb),4,full_feat")
+st2_nf = lambda: Stacker(xgbr(), [linreg(), xgbr()], 4, lazy_stack=True, name="xgbr(lin,xgb),4,no_feat")
+SEEMS THE DEFAULT SETTING OF THE STACKER lazy_opt=True, lazy_stack=False are indeed the best
+"""
+lin_lin_xgb = lambda: Stacker(linreg(), [linreg(), xgbr()], name="lin(lin,xgb)")
+etr_lin_xgb = lambda: Stacker(linreg(), [linreg(), xgbr()], name="etr(lin,xgb)")
 
 dream_team = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), 
                              #xgbr_poly(), linreg_poly(),
                              bayes_ridge(),
                              lasso(),
                              svrsig(),
-                             #svrrbf(),
+                             svrrbf(),
                              perc()
                             ])
+
+mini_team = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), svrsig()])
+lin_mini_team = lambda: Stacker(linreg(), mini_team(), name="lin(xgbr,rfr,etr,linreg,svrsig)")
+etr_mini_team = lambda: Stacker(linreg(), mini_team(), 4, name="etr(xgbr,rfr,etr,linreg,svrsig)")
+xgbr_mini_team = lambda: Stacker(xgbr(), mini_team(), 4, name="xgbr(xgbr,rfr,etr,linreg,svrsig)")
+mini_team_plus_bayes = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), svrsig(), bayes_ridge()])
+mini_team_plus_lasso = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), svrsig(), lasso()])
+mini_team_plus_perc = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), svrsig(), perc()])
+mini_team_plus_svrrbf = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), svrsig(), svrrbf()])
+lin_mini_bayes = lambda: Stacker(linreg(), mini_team_plus_bayes(), "lin(xgbr,rfr,etr,lin,svrsig,bayes)")
+lin_mini_lasso = lambda: Stacker(linreg(), mini_team_plus_lasso(), "lin(xgbr,rfr,etr,lin,svrsig,lasso)")
+lin_mini_perc = lambda: Stacker(linreg(), mini_team_plus_perc(), "lin(xgbr,rfr,etr,lin,svrsig,perc)")
+lin_mini_svrrbf = lambda: Stacker(linreg(), mini_team_plus_svrrbf(), "lin(xgbr,rfr,etr,lin,svrsig,svrrbf)")
+lin_dream = lambda: Stacker(linreg(), dream_team(), "lin(xgbr,rfr,etr,lin,svrsig,svrrbf,lasso,bayes,perc)")
+
