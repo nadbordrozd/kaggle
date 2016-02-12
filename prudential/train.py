@@ -3,36 +3,50 @@ import traceback
     
 info("start train.py $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
 
-f_extractors = ['basic',
- 'feats2',
- 'fe2_km10',
- 'fe2_km20',
- 'fe2_km40',
- 'oh_med_cut',
- 'ohmed',         
- 'oh_km10',
- 'oh_km20',
- 'oh_km40',
- 'fe2_median'
- ]
-     
-f_extractors = ['basic', 'oh_med_cut', "fe2_km20", "fe2_median"]
+m = lin_mini_team
+for f in ["ohmedcut_kw_nan_poly02", "ohmedcut_kw_nan_poly015", "ohmedcut_kw_nan_poly012"]:
+    result = lazy_benchmark(m(), f)
+    info("ONE-FOLD CV got  %.3f    %s   kappa score, feats = %s" % (result, m(), f))
+    make_sub(lin_mini_team(), f, f + ".csv")
+
+for f in ["ohmedcut_kw_nan_poly02", "ohmedcut_kw_nan_poly015", "ohmedcut_kw_nan_poly012"]:
+    result = benchmark(m(), f)
+    info("FULL CV got  %.3f    %s   kappa score, feats = %s" % (result, m(), f))
+    make_sub(lin_mini_team(), f, f + ".csv")
+
+0/0
+
+
+f_extractors = [
+    'ohmedcut_kw_nan',
+    'ohmedcut_kw_nan_poly02',
+    'ohmedcut_kw_nan_poly015',
+    'ohmedcut_kw_nan_poly012',
+    'ohmedcut_poly02',
+    'ohmedcut_poly015',
+    'ohmedcut_poly012',
+    'basic',     
+    'oh_med_cut',
+    'ohmedcut_kmns10',
+    'ohmedcut_kmns20',
+    'ohmedcut_kmns40',
+    'ohmed', 
+    "feats2", 
+    "fe2_median", 
+    'fe2_kmns10',
+    'fe2_kmns20',
+    'fe2_kmns40',
+    'ohmedcut_kwcount',
+    'ohmedcut_nancount'
+]
 
 
 models = [
-    lin_mini_team,
-    etr_mini_team,
-    xgbr_mini_team,
-    lin_mini_bayes,
-    lin_mini_lasso,
-    lin_mini_perc,
-    lin_mini_svrrbf,
-    lin_dream,
-    lin_dream
+    lin_mini_team
 ]
 
-for f in  ['oh_med_cut', "feats2"]:
-    for m in models:
+for m in models:
+    for f in f_extractors:
         try:
             result = lazy_benchmark(m(), f)
             info("ONE-FOLD CV got  %.3f    %s   kappa score, feats = %s" % (result, m(), f))
@@ -42,7 +56,7 @@ for f in  ['oh_med_cut', "feats2"]:
             info(s)
 
 info("one - folders done")
-for f in  ['oh_med_cut', "feats2"]:
+for f in f_extractors:
     for m in models:
         try:
             result = benchmark(m(), f)

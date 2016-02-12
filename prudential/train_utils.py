@@ -140,6 +140,8 @@ def benchmark(model, fe):
     pred = train_predictions(model, fe)
     return eval_wrapper(pred, y)
 
+test_pred_memo = Memory(cachedir=JOBLIB_MEMO_PATH+"test_predictions", verbose=0)
+@train_pred_memo.cache
 def make_predictions(model, fe):
     X, X_actual_test = train_test_sets(fe)
     model.fit(X, y)
@@ -240,17 +242,16 @@ def make_sub_optimized(stacker, base_clfs, fe, filename):
     df['Response'] = preds
     info("made submission to file %s. stacker %s, features %s" % (filename, stacker, fe))
     df.to_csv(filename, index=False)
-    
-def make_sub(stacker, base_clfs, fe, filename):
-    preds = stacker_test_predictions(stacker, base_clfs, fe)
-    
+
+def make_sub(model, fe, filename):
+    preds = make_predictions(model, fe)
     df = pd.DataFrame()
     df['Id'] = test.Id
     df['Response'] = preds
-    info("making stacker %s, nonoptimized submission to file %s " % (stacker, filename))
+    info("model %s with features %s making submission to file %s " % (model(), fe, filename))
     df.to_csv(filename, index=False)
-    
-    
+
+
 def lazy_benchmark(model, fe):
     X, _ = train_test_sets(fe)
     train_inds, test_inds = train_test_folds[0]
@@ -356,9 +357,9 @@ mini_team_plus_bayes = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression()
 mini_team_plus_lasso = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), svrsig(), lasso()])
 mini_team_plus_perc = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), svrsig(), perc()])
 mini_team_plus_svrrbf = lambda: sorted([xgbr(), rfr(),  etr(), LinearRegression(), svrsig(), svrrbf()])
-lin_mini_bayes = lambda: Stacker(linreg(), mini_team_plus_bayes(), "lin(xgbr,rfr,etr,lin,svrsig,bayes)")
-lin_mini_lasso = lambda: Stacker(linreg(), mini_team_plus_lasso(), "lin(xgbr,rfr,etr,lin,svrsig,lasso)")
-lin_mini_perc = lambda: Stacker(linreg(), mini_team_plus_perc(), "lin(xgbr,rfr,etr,lin,svrsig,perc)")
-lin_mini_svrrbf = lambda: Stacker(linreg(), mini_team_plus_svrrbf(), "lin(xgbr,rfr,etr,lin,svrsig,svrrbf)")
-lin_dream = lambda: Stacker(linreg(), dream_team(), "lin(xgbr,rfr,etr,lin,svrsig,svrrbf,lasso,bayes,perc)")
+lin_mini_bayes = lambda: Stacker(linreg(), mini_team_plus_bayes(), name="lin(xgbr,rfr,etr,lin,svrsig,bayes)")
+lin_mini_lasso = lambda: Stacker(linreg(), mini_team_plus_lasso(), name="lin(xgbr,rfr,etr,lin,svrsig,lasso)")
+lin_mini_perc = lambda: Stacker(linreg(), mini_team_plus_perc(), name="lin(xgbr,rfr,etr,lin,svrsig,perc)")
+lin_mini_svrrbf = lambda: Stacker(linreg(), mini_team_plus_svrrbf(), name="lin(xgbr,rfr,etr,lin,svrsig,svrrbf)")
+lin_dream = lambda: Stacker(linreg(), dream_team(), name="lin(xgbr,rfr,etr,lin,svrsig,svrrbf,lasso,bayes,perc)")
 
