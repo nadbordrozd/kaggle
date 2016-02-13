@@ -276,6 +276,13 @@ def ohmedcut_kw_nan_poly012():
     X_train, X_test = ohmedcut_kw_nan()
     return add_poly_feats(X_train, X_test, get_y(), 0.12)
 
+def ohmedcut_kw_nan_poly01():
+    X_train, X_test = ohmedcut_kw_nan()
+    return add_poly_feats(X_train, X_test, get_y(), 0.1)
+
+def ohmedcut_kw_nan_poly008():
+    X_train, X_test = ohmedcut_kw_nan()
+    return add_poly_feats(X_train, X_test, get_y(), 0.08)
 
 def ohmedcut_poly02():
     X_train, X_test = ohmedcut_kw_nan()
@@ -288,6 +295,14 @@ def ohmedcut_poly015():
 def ohmedcut_poly012():
     X_train, X_test = ohmedcut_kw_nan()
     return add_poly_feats(X_train, X_test, get_y(), 0.12)
+
+def ohmedcut_poly01():
+    X_train, X_test = ohmedcut_kw_nan()
+    return add_poly_feats(X_train, X_test, get_y(), 0.1)
+
+def ohmedcut_poly008():
+    X_train, X_test = ohmedcut_kw_nan()
+    return add_poly_feats(X_train, X_test, get_y(), 0.08)
 
 
 extractors = {
@@ -316,9 +331,13 @@ extractors = {
     'ohmedcut_kw_nan_poly02': ohmedcut_kw_nan_poly02,
     'ohmedcut_kw_nan_poly015': ohmedcut_kw_nan_poly015,
     'ohmedcut_kw_nan_poly012': ohmedcut_kw_nan_poly012,
+    'ohmedcut_kw_nan_poly01': ohmedcut_kw_nan_poly01,
+    'ohmedcut_kw_nan_poly008': ohmedcut_kw_nan_poly008,
     'ohmedcut_poly02': ohmedcut_poly02,
     'ohmedcut_poly015': ohmedcut_poly015,
     'ohmedcut_poly012': ohmedcut_poly012,
+    'ohmedcut_poly01': ohmedcut_poly01,
+    'ohmedcut_poly008': ohmedcut_poly008,
 }
 
 memo = Memory(cachedir="fecache/traintestset", verbose=0)
