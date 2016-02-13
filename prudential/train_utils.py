@@ -88,53 +88,6 @@ def test_predictions(model, fe):
     return model.predict(X_actual_test)
 
 
-@memo(Perd(MEMO_PATH + "_stacker_train_predictions"))
-def stacker_train_predictions(stacker, base_clfs, fe):
-    X, _ = train_test_sets(fe)
-    info("start stacker --------------------------")
-    n = len(y)
-    stacked_X = np.hstack([X] + [train_predictions(clf, fe).reshape(n, 1) for clf in base_clfs])
-    info("base regressors done")
-    ind2pred = {}
-    for i, (train, test) in enumerate(train_test_folds):
-        info("fitting stacker fold %s   %s" % (i, str(stacker)))
-
-        stacker.fit(stacked_X[train], y[train])
-        info("stacker fitted fold %s    %s " % (i, str(stacker)))
-        preds = stacker.predict(stacked_X[test])
-        for i, p in zip(test, preds):
-            ind2pred[i] = p
-    info("stacker done =========================")
-    return np.array([ind2pred[i] for i in range(len(y))])
-
-@memo(Perd(MEMO_PATH + "_lazy_stacker_train_predictions"))
-def lazy_stacker_train_predictions(stacker, base_clfs, fe):
-    info("start stacker --------------------------")
-    n = len(y)
-    stacked_X = np.hstack([train_predictions(clf, fe).reshape(n, 1) for clf in base_clfs])
-    info("base regressors done")
-    ind2pred = {}
-    for i, (train, test) in enumerate(train_test_folds):
-        info("fitting stacker fold %s   %s" % (i, str(stacker)))
-
-        stacker.fit(stacked_X[train], y[train])
-        info("stacker fitted fold %s    %s " % (i, str(stacker)))
-        preds = stacker.predict(stacked_X[test])
-        for i, p in zip(test, preds):
-            ind2pred[i] = p
-    info("stacker done =========================")
-    return np.array([ind2pred[i] for i in range(len(y))])
-
-
-@memo(Perd(MEMO_PATH + "_stacker_test_predictions"))
-def stacker_test_predictions(stacker, base_clfs, fe):
-    n = len(y)
-    X, X_actual_test = train_test_sets(fe)
-    stacked_X = np.hstack([X] + [train_predictions(clf, fe).reshape(n, 1) for clf in base_clfs])
-    stacker.fit(stacked_X, y)
-    nn = X_actual_test.shape[0]
-    stacked_test_X = np.hstack([X_actual_test] + [test_predictions(clf, fe).reshape(nn, 1) for clf in base_clfs])
-    return stacker.predict(stacked_test_X)
 #============================================================================
 def benchmark(model, fe):
     pred = train_predictions(model, fe)
@@ -144,21 +97,10 @@ test_pred_memo = Memory(cachedir=JOBLIB_MEMO_PATH+"test_predictions", verbose=0)
 @train_pred_memo.cache
 def make_predictions(model, fe):
     X, X_actual_test = train_test_sets(fe)
+    info("fitting for realz  %s   %s" % (model, fe))
     model.fit(X, y)
+    info("for realz  fitted  %s   %s" % (model, fe))
     return model.predict(X_actual_test)
-
-def benchmark_stacker(model, base_clfs, fe):
-    pred = stacker_train_predictions(model, base_clfs, fe)
-    result = eval_wrapper(pred, y)
-    info("stacker %.4f   %s, %s, feats = %s" % (result, model, base_clfs, fe))
-    return result
-
-def benchmark_lazy_stacker(model, base_clfs, fe):
-    pred = lazy_stacker_train_predictions(model, base_clfs, fe)
-    result = eval_wrapper(pred, y)
-    info("lazy stacker %.4f   %s, %s  feats = %s" % (result, model, base_clfs, fe))
-    
-    return result
 #==============================================================================
 # OPTIMISING OFFSETS
 # -----------------------------------------------------------------------------
@@ -189,60 +131,6 @@ def actually_apply_offsets(predictions, offsets):
 
     final_test_preds = np.round(np.clip(data[1], 1, 8)).astype(int)
     return final_test_preds
-
-opt_train_pred_memo = Memory(cachedir=JOBLIB_MEMO_PATH+"opt_train_pred", verbose=0)
-@opt_train_pred_memo.cache
-def optimized_train_predictions(raw_train_predictions):
-    n = len(y)
-    ind2pred = {}
-    for i, (train, test) in enumerate(train_test_folds):
-        train_preds = raw_train_predictions[train]
-        offsets = optimize_offsets(train_preds, y[train])
-        test_preds = actually_apply_offsets(raw_train_predictions[test], offsets)
-        for i, p in zip(test, test_preds):
-            ind2pred[i] = p
-    return np.array([ind2pred[i] for i in range(len(y))])
-
-def benchmark_model_optimized(model, fe):
-    preds = optimized_train_predictions(train_predictions(model, fe))
-    result = eval_wrapper(preds, y)
-    info("optimized %.4f   %s  %s" % (result, model, fe))
-    return result
-
-def benchmark_optimized_stacker(stacker, base_clfs, fe):
-    preds = stacker_train_predictions(stacker, base_clfs, fe)
-    opreds = optimized_train_predictions(preds)
-    result = eval_wrapper(opreds, y)
-    info("optimized stacker %.4f   %s, %s,  feats=%s" % (result, stacker, base_clfs, fe))
-    return result
-
-def benchmark_optimized_lazy_stacker(stacker, base_clfs, fe):
-    preds = lazy_stacker_train_predictions(stacker, base_clfs, fe)
-    opreds = optimized_train_predictions(preds)
-    result = eval_wrapper(opreds, y)
-    info("optimized stacker %.4f   %s, %s   feats=%s" % (result, stacker, base_clfs, fe))
-    return result
-
-def optimized_test_predictions(stacker, base_clfs, fe):
-    train_preds = stacker_train_predictions(stacker, base_clfs, fe)
-    offsets = optimize_offsets(train_preds, y)
-    test_preds = stacker_test_predictions(stacker, base_clfs, fe)
-    final_test_preds = actually_apply_offsets(test_preds, offsets)
-    #print "print len(train_preds), len(test_preds), len(final_test_preds)"
-    #print len(train_preds), len(test_preds), len(final_test_preds)
-    info("made optimized predictions for stacker %s with features %s and base regressors %s" % (stacker, fe, base_clfs))
-    return final_test_preds
-
-def make_sub_optimized(stacker, base_clfs, fe, filename):
-    preds = optimized_test_predictions(stacker, base_clfs, fe)
-    #print "len(preds)"
-    #print len(preds)
-    df = pd.DataFrame()
-    df['Id'] = test_id
-    df['Response'] = preds
-    info("made submission to file %s. stacker %s, features %s" % (filename, stacker, fe))
-    df.to_csv(filename, index=False)
-
 
 def make_sub(model, fe, filename):
     preds = make_predictions(model, fe)
@@ -296,7 +184,10 @@ class Stacker(object):
                 train_y = y[train_inds]
                 test_X = XX[test_inds]
                 test_y = y[test_inds]
+                info("fitting stacker %s,   len(y)=%s" % (self.stacker, len(train_y)))
                 self.stacker.fit(train_X, train_y)
+                info("fittedd stacker %s,   len(y)=%s" % (self.stacker, len(train_y)))
+                  
                 buncha_offsets.append(optimize_offsets(self.stacker.predict(test_X), test_y))
             self.offsets = np.vstack(buncha_offsets).mean(axis=0)
             self.stacker.fit(XX, y)
