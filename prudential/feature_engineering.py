@@ -5,6 +5,7 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.preprocessing import Normalizer
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from joblib import Memory
+from sklearn.preprocessing import PolynomialFeatures
 
 def get_y():
     train = pd.read_csv("train.csv")
@@ -135,6 +136,21 @@ def fe2():
     y = np.array(train.Response)
     return X, X_actual_test
 
+def nan_count():
+    all_data = read_all_data()
+    all_data['nan_count'] = all_data.isnull().sum(axis=1)
+    train = all_data[all_data['Response']>0].copy()
+    test = all_data[all_data['Response']<1].copy()
+    return train.nan_count.reshape(len(train), 1), test.nan_count.reshape(len(test), 1)
+
+def keywords_count():
+    all_data = read_all_data()
+    mk = [col for col in all_data.columns if col.startswith("Medical_K")]
+    all_data['sum_keywords'] = sum(all_data[col] for col in mk)
+    train = all_data[all_data['Response']>0].copy()
+    test = all_data[all_data['Response']<1].copy()
+    return train.sum_keywords.reshape(len(train), 1), test.sum_keywords.reshape(len(test), 1)
+    
 def fe2_median():
     """not one-hot encoded
     """
@@ -161,29 +177,45 @@ def kmeans_feats(X, clusters=10):
     kmeans = MiniBatchKMeans(n_clusters=clusters, random_state=0)
     return kmeans.fit_transform(X)
     
-def kmeans_10():
+def kmns_10():
     X, X_test = train_test_sets("ohmed")
     n, _ = X.shape
     tot = np.vstack([X, X_test])
-    kmeans = kmeans_feats(tot)
-    tot = np.hstack([tot, kmeans])
-    return tot[:n, :], tot[n:, :]
+    kmeans = kmeans_feats(tot, clusters=10)
+    return kmeans[:n, :], kmeans[n:, :]
     
-def kmeans_20():
+def kmns_20():
     X, X_test = train_test_sets("ohmed")
     n, _ = X.shape
     tot = np.vstack([X, X_test])
     kmeans = kmeans_feats(tot, clusters=20)
-    tot = np.hstack([tot, kmeans])
-    return tot[:n, :], tot[n:, :]
+    return kmeans[:n, :], kmeans[n:, :]
 
-def kmeans_40():
+def kmns_40():
     X, X_test = train_test_sets("ohmed")
     n, _ = X.shape
     tot = np.vstack([X, X_test])
     kmeans = kmeans_feats(tot, clusters=40)
-    tot = np.hstack([tot, kmeans])
     return tot[:n, :], tot[n:, :]
+
+def corr(a, b):
+    return np.corrcoef(a, b)[0][1]
+
+def add_poly_feats(X_train, X_test, y, threshold):
+    corrs = []
+    for i in range(X_train.shape[1]):
+        corrs.append(corr(X_train[:, i], y))
+    gooduns = [i for i, c in enumerate(corrs) if abs(c) > threshold]
+    rest = [i for i, c in enumerate(corrs) if abs(c) <= threshold]
+    tot = np.vstack([X_train, X_test])
+    good_feats = tot[:, gooduns]
+    meh_feats = tot[:, rest]
+    poly_feats = PolynomialFeatures(2).fit_transform(good_feats)
+    assert set(poly_feats[:, 0]) == {1}
+    new_tot = np.hstack([poly_feats, meh_feats[:, 1:]])
+    n = len(y)
+    return new_tot[:n, :], new_tot[n:, :]
+
 
 combiner_memo = Memory(cachedir="fecache/combiner", verbose=0)
 @combiner_memo.cache
@@ -195,40 +227,98 @@ def combine(fextractors):
         tests.append(test)
     return np.hstack(trains), np.hstack(tests)    
     
-def oh_km10():
-    return combine(["ohmed", "kmeans10"])
+def oh_kmns10():
+    return combine(["ohmed", "kmns10"])
     
-def oh_km20():
-    return combine(["ohmed", "kmeans20"])
+def oh_kmns20():
+    return combine(["ohmed", "kmns20"])
 
-def oh_km40():
-    return combine(["ohmed", "kmeans40"])
+def oh_kmns40():
+    return combine(["ohmed", "kmns40"])
 
 
-def fe2_km10():
-    return combine(["feats2", "kmeans10"])
+def fe2_kmns10():
+    return combine(["feats2", "kmns10"])
 
-def fe2_km20():
-    return combine(["feats2", "kmeans20"])
+def fe2_kmns20():
+    return combine(["feats2", "kmns20"])
 
-def fe2_km40():
-    return combine(["feats2", "kmeans40"])
+def fe2_kmns40():
+    return combine(["feats2", "kmns40"])
+
+def ohmedcut_kmns10():
+    return combine(["oh_med_cut", "kmns10"])
+
+def ohmedcut_kmns20():
+    return combine(["oh_med_cut", "kmns20"])
+
+def ohmedcut_kmns40():
+    return combine(["oh_med_cut", "kmns40"])
+
+def ohmedcut_nan_count():
+    return combine(["oh_med_cut", "nan_count"])
+
+def ohmedcut_keywords_count():
+    return combine(["oh_med_cut", "keywords_count"])
+
+def ohmedcut_kw_nan():
+    return combine(["oh_med_cut", "keywords_count", "nan_count"])
+
+def ohmedcut_kw_nan_poly02():
+    X_train, X_test = ohmedcut_kw_nan()
+    return add_poly_feats(X_train, X_test, get_y(), 0.2)
+
+def ohmedcut_kw_nan_poly015():
+    X_train, X_test = ohmedcut_kw_nan()
+    return add_poly_feats(X_train, X_test, get_y(), 0.15)
+
+def ohmedcut_kw_nan_poly012():
+    X_train, X_test = ohmedcut_kw_nan()
+    return add_poly_feats(X_train, X_test, get_y(), 0.12)
+
+
+def ohmedcut_poly02():
+    X_train, X_test = ohmedcut_kw_nan()
+    return add_poly_feats(X_train, X_test, get_y(), 0.2)
+
+def ohmedcut_poly015():
+    X_train, X_test = ohmedcut_kw_nan()
+    return add_poly_feats(X_train, X_test, get_y(), 0.15)
+
+def ohmedcut_poly012():
+    X_train, X_test = ohmedcut_kw_nan()
+    return add_poly_feats(X_train, X_test, get_y(), 0.12)
+
 
 extractors = {
     'basic': basic_extractor,
     'feats2': fe2,
     'ohmed': oh_med,
-    'kmeans10': kmeans_10,
-    'kmeans20': kmeans_20,
-    'kmeans40': kmeans_40,
-    'oh_km10': oh_km10,
-    'oh_km20': oh_km20,
-    'oh_km40': oh_km40,
-    'fe2_km10': fe2_km10,
-    'fe2_km20': fe2_km20,
-    'fe2_km40': fe2_km40,
+    'kmns10': kmns_10,
+    'kmns20': kmns_20,
+    'kmns40': kmns_40,
+    'oh_kmns10': oh_kmns10,
+    'oh_kmns20': oh_kmns20,
+    'oh_kmns40': oh_kmns40,
+    'fe2_kmns10': fe2_kmns10,
+    'fe2_kmns20': fe2_kmns20,
+    'fe2_kmns40': fe2_kmns40,
     "fe2_median": fe2_median,
-    'oh_med_cut': oh_med_cut
+    'oh_med_cut': oh_med_cut,
+    'ohmedcut_kmns10': ohmedcut_kmns10,
+    'ohmedcut_kmns20': ohmedcut_kmns20,
+    'ohmedcut_kmns40': ohmedcut_kmns40,
+    'nan_count': nan_count,
+    'keywords_count': keywords_count,
+    'ohmedcut_kwcount': ohmedcut_keywords_count,
+    'ohmedcut_nancount': ohmedcut_nan_count,
+    'ohmedcut_kw_nan': ohmedcut_kw_nan,
+    'ohmedcut_kw_nan_poly02': ohmedcut_kw_nan_poly02,
+    'ohmedcut_kw_nan_poly015': ohmedcut_kw_nan_poly015,
+    'ohmedcut_kw_nan_poly012': ohmedcut_kw_nan_poly012,
+    'ohmedcut_poly02': ohmedcut_poly02,
+    'ohmedcut_poly015': ohmedcut_poly015,
+    'ohmedcut_poly012': ohmedcut_poly012,
 }
 
 memo = Memory(cachedir="fecache/traintestset", verbose=0)

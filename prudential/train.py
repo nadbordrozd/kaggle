@@ -20,6 +20,8 @@ f_extractors = ['basic', 'oh_med_cut', "fe2_km20", "fe2_median"]
 
 
 models = [
+    lin_lin_xgb,
+    etr_lin_xgb,
     lin_mini_team,
     etr_mini_team,
     xgbr_mini_team,
