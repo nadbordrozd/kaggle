@@ -140,6 +140,8 @@ def benchmark(model, fe):
     pred = train_predictions(model, fe)
     return eval_wrapper(pred, y)
 
+test_pred_memo = Memory(cachedir=JOBLIB_MEMO_PATH+"test_predictions", verbose=0)
+@train_pred_memo.cache
 def make_predictions(model, fe):
     X, X_actual_test = train_test_sets(fe)
     model.fit(X, y)
@@ -240,17 +242,17 @@ def make_sub_optimized(stacker, base_clfs, fe, filename):
     df['Response'] = preds
     info("made submission to file %s. stacker %s, features %s" % (filename, stacker, fe))
     df.to_csv(filename, index=False)
-    
+
+
 def make_sub(model, fe, filename):
-    preds = stacker_test_predictions(stacker, base_clfs, fe)
-    
+    preds = make_predictions(model, fe)
     df = pd.DataFrame()
-    df['Id'] = test.Id
+    df['Id'] = test_id
     df['Response'] = preds
-    info("making stacker %s, nonoptimized submission to file %s " % (stacker, filename))
+    info("model %s with features %s making submission to file %s " % (model(), fe, filename))
     df.to_csv(filename, index=False)
-    
-    
+
+
 def lazy_benchmark(model, fe):
     X, _ = train_test_sets(fe)
     train_inds, test_inds = train_test_folds[0]
