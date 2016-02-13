@@ -42,7 +42,17 @@ f_extractors = [
 
 
 models = [
-    lin_mini_team
+    lin_lin_xgb,
+    etr_lin_xgb,
+    lin_mini_team,
+    etr_mini_team,
+    xgbr_mini_team,
+    lin_mini_bayes,
+    lin_mini_lasso,
+    lin_mini_perc,
+    lin_mini_svrrbf,
+    lin_dream,
+    lin_dream
 ]
 
 for m in models:
