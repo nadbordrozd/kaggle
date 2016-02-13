@@ -249,7 +249,7 @@ def make_sub(model, fe, filename):
     df = pd.DataFrame()
     df['Id'] = test_id
     df['Response'] = preds
-    info("model %s with features %s making submission to file %s " % (model(), fe, filename))
+    info("model %s with features %s making submission to file %s " % (model, fe, filename))
     df.to_csv(filename, index=False)
 
 
