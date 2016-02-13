@@ -246,7 +246,7 @@ def make_sub_optimized(stacker, base_clfs, fe, filename):
 def make_sub(model, fe, filename):
     preds = make_predictions(model, fe)
     df = pd.DataFrame()
-    df['Id'] = test.Id
+    df['Id'] = test_id
     df['Response'] = preds
     info("model %s with features %s making submission to file %s " % (model(), fe, filename))
     df.to_csv(filename, index=False)
