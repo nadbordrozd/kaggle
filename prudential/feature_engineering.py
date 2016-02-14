@@ -366,7 +366,6 @@ extractors = {
     'fe2_poly02': fe2_poly02,
     'fe2_poly015': fe2_poly015,
     'fe2_poly01': fe2_poly01,
-    'fe2_polyomc02': fe2_polyomc02,
 }
 
 memo = Memory(cachedir="fecache/traintestset", verbose=0)
