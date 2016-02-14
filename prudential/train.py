@@ -4,15 +4,11 @@ import traceback
 info("start train.py $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
 
 m = lin_mini_team
-for f in ["ohmedcut_kw_nan_poly01", "ohmedcut_poly01"]:
+for f in ["ohmedcut_kw_nan_poly015"]:
+    make_sub(lin_mini_team(), f, f + ".csv")
     result = lazy_benchmark(m(), f)
     info("ONE-FOLD CV got  %.3f    %s   kappa score, feats = %s" % (result, m(), f))
-    make_sub(lin_mini_team(), f, f + ".csv")
 
-for f in ["ohmedcut_kw_nan_poly01", "ohmedcut_poly01"]:
-    result = benchmark(m(), f)
-    info("FULL CV got  %.3f    %s   kappa score, feats = %s" % (result, m(), f))
-    make_sub(lin_mini_team(), f, f + ".csv")
 
 0/0
 

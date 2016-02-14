@@ -212,10 +212,24 @@ def add_poly_feats(X_train, X_test, y, threshold):
     meh_feats = tot[:, rest]
     poly_feats = PolynomialFeatures(2).fit_transform(good_feats)
     assert set(poly_feats[:, 0]) == {1}
-    new_tot = np.hstack([poly_feats, meh_feats[:, 1:]])
+    new_tot = np.hstack([poly_feats[:, 1:], meh_feats])
     n = len(y)
     return new_tot[:n, :], new_tot[n:, :]
 
+def get_poly_feats(X_train, X_test, y, threshold):
+    corrs = []
+    for i in range(X_train.shape[1]):
+        corrs.append(corr(X_train[:, i], y))
+    gooduns = [i for i, c in enumerate(corrs) if abs(c) > threshold]
+    rest = [i for i, c in enumerate(corrs) if abs(c) <= threshold]
+    tot = np.vstack([X_train, X_test])
+    good_feats = tot[:, gooduns]
+    meh_feats = tot[:, rest]
+    poly_feats = PolynomialFeatures(2).fit_transform(good_feats)
+    assert set(poly_feats[:, 0]) == {1}
+    poly_feats = poly_feats[:, 1:]
+    n = len(y)
+    return poly_feats[:n, :], poly_feats[n:, :]
 
 combiner_memo = Memory(cachedir="fecache/combiner", verbose=0)
 @combiner_memo.cache
@@ -304,6 +318,17 @@ def ohmedcut_poly008():
     X_train, X_test = ohmedcut_kw_nan()
     return add_poly_feats(X_train, X_test, get_y(), 0.08)
 
+def fe2_poly02():
+    X_train, X_test = fe2()
+    return add_poly_feats(X_train, X_test, get_y(), 0.2)
+
+def fe2_poly015():
+    X_train, X_test = fe2()
+    return add_poly_feats(X_train, X_test, get_y(), 0.15)
+
+def fe2_poly01():
+    X_train, X_test = fe2()
+    return add_poly_feats(X_train, X_test, get_y(), 0.1)
 
 extractors = {
     'basic': basic_extractor,
@@ -338,6 +363,10 @@ extractors = {
     'ohmedcut_poly012': ohmedcut_poly012,
     'ohmedcut_poly01': ohmedcut_poly01,
     'ohmedcut_poly008': ohmedcut_poly008,
+    'fe2_poly02': fe2_poly02,
+    'fe2_poly015': fe2_poly015,
+    'fe2_poly01': fe2_poly01,
+    'fe2_polyomc02': fe2_polyomc02,
 }
 
 memo = Memory(cachedir="fecache/traintestset", verbose=0)
