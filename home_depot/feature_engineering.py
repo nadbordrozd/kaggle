@@ -8,14 +8,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 df_train = pd.read_csv("data/train.csv", encoding="ISO-8859-1")
 y = np.array(df_train.relevance)
 train_size = len(y)
-train_size = 10000
-df_train = df_train.iloc[:train_size]
 df_test = pd.read_csv("data/test.csv", encoding="ISO-8859-1")
 df_pro_desc = pd.read_csv("data/product_descriptions.csv")
-# commented out for now, extracting feature from the entire set was taking too long
-# playing with just the training set will be enough
+# temporarily commented out, extracting feature from the entire set was taking too long
+# playing with just the training set will be enough for now
 #df_all = pd.concat((df_train, df_test), axis=0, ignore_index=True)
-
+df_all = df_train
 df_all = pd.merge(df_all, df_pro_desc, how='left', on='product_uid')
 
 total_size = len(df_all)
@@ -26,7 +24,7 @@ def str_stemmer(s):
     return [stemmer.stem(word) for word in s.lower().split()]
 
 @cache
-def search_term_tokens():
+def search_tokens():
     logger.info("tokenizing search terms, should be over soon")
     result = df_all.search_term.map(str_stemmer)
     logger.info("done tokenizing search terms")
@@ -62,10 +60,12 @@ def title_same_tokens_count():
                            ).reshape(total_size, 1)
     return title_count
 
+def identity(x):
+    return x
 
 @cache
 def tfidf_descr_vectorizer():
-    vectorizer = TfidfVectorizer(analyzer=lambda x: x)
+    vectorizer = TfidfVectorizer(analyzer=identity)
     tfidf_descr = vectorizer.fit_transform(description_tokens())
     return tfidf_descr, vectorizer
 
@@ -77,7 +77,7 @@ def tfidf_descr():
 @cache
 def tfidf_search():
     _, vectorizer = tfidf_descr_vectorizer()
-    return vectorizer.transform(search_term_tokens())
+    return vectorizer.transform(search_tokens())
 
 @cache
 def tfidf_title():
@@ -92,13 +92,27 @@ def tfidf_search_times_descr():
                      for a, b in zip(search, descr)]).reshape(total_size, 1)
 
 @cache
-def tfidf_title_times_descr():
+def tfidf_search_times_title():
+    search = tfidf_search()
     title = tfidf_title()
-    descr = tfidf_descr()
     return np.array([np.float(a.dot(b.T).todense())
-                     for a, b in zip(title, descr)]).reshape(total_size, 1)
+                     for a, b in zip(search, title)]).reshape(total_size, 1)
+
+@cache
+def len_of_query():
+    return np.array([len(x) for x in search_tokens()]).reshape(total_size, 1)
 
 
+@cache
+def features_0():
+    return np.hstack([descr_same_tokens_count(), title_same_tokens_count(),
+                      len_of_query()])
 
-
+@cache
+def features_1():
+    return np.hstack([tfidf_search_times_descr(), tfidf_search_times_title(),
+                      descr_same_tokens_count(), title_same_tokens_count(),
+                      len_of_query()])
+                      
+                      
 

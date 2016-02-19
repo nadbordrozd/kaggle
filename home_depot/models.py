@@ -4,7 +4,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.ensemble import RandomForestRegressor, BaggingRegressor
 from sklearn.linear_model import LinearRegression
 
-from common_config import logger, cache
+from commons import logger, cache
 
 # =================== OPTIMIZING OFFSETS
 allowed_responses = [1, 1.33, 1.66, 2, 2.33, 2.66, 3]
